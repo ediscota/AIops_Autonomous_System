@@ -1,0 +1,33 @@
+services:
+  # ---------------------------------------------------
+  # 1. MESSAGE BROKER (The "Nervous System")
+  # ---------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: mosquitto
+    ports:
+      - "1883:1883"     # MQTT port
+      - "9001:9001"     # WebSockets port (useful for web dashboards later)
+    volumes:
+      # Map a local config file to the container (optional but recommended for stability)
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - aiops_network
+
+  # ---------------------------------------------------
+  # 2. MANAGED RESOURCES (The Simulator)
+  # ---------------------------------------------------
+  managed_resources:
+    build: ./managed_resources
+    container_name: managed_resources
+    environment:
+      - MQTT_BROKER=mosquitto  # Tells Python to connect to the service named 'mosquitto'
+    depends_on:
+      - mosquitto
+    networks:
+      - aiops_network
+
+# Define a custom network so containers can talk to each other by name
+networks:
+  aiops_network:
+    driver: bridge
