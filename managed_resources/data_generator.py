@@ -7,11 +7,6 @@ from webapp import Cluster, Container
 
 CONFIG_FILE = "config.ini"
 
-# MQTT topics
-TOPIC_METRICS = "sensors/metrics"
-TOPIC_LOGS = "sensors/logs"
-TOPIC_ACTIONS = "effectors/actions"
-
 # --------------------
 # CONFIG PARSING
 # --------------------
@@ -56,35 +51,12 @@ for cid, cluster in clusters.items():
         print("No containers in this cluster!")
     for c in cluster.containers:
         print(f"  - {c.name}")
-
-print("========================================\n")
-
-# --------------------
-# MQTT CALLBACKS
-# --------------------
-def on_connect(client, userdata, flags, rc):
-    print(f"Connected to MQTT Broker with result code {rc}")
-    client.subscribe(TOPIC_ACTIONS)
-
-def on_message(client, userdata, msg):
-    try:
-        payload = json.loads(msg.payload.decode())
-        print(f"Received Command: {payload}")
-
-        # Try action on all clusters
-        for cluster in clusters.values():
-            if cluster.execute_action(payload):
-                break
-
-    except Exception as e:
-        print(f"Error processing message: {e}")
+print("===========================================\n")
 
 # --------------------
 # MQTT SETUP
 # --------------------
 client = mqtt.Client()
-client.on_connect = on_connect
-client.on_message = on_message
 
 while True:
     try:
@@ -100,50 +72,39 @@ print("Simulation started...")
 # --------------------
 # MAIN LOOP
 # --------------------
-while True:
-    all_metrics = []
+import time
+import json
 
+PUBLISH_INTERVAL = 5  # seconds
+
+while True:
+    timestamp = time.time()
+
+    # Update all clusters states
     for cluster in clusters.values():
         cluster.update_state()
+
+    # Publish metrics
+    for cluster in clusters.values():
         for container in cluster.containers:
-            topic = f"AIops/metrics/cluster_{cluster.cluster_id}/container_{container.name}/"
+            topic_base = (
+                f"AIops/metrics/cluster_{cluster.cluster_id}/"
+                f"container_{container.name}/"
+            )
 
-            payload = {
-                "value" : round(container.cpu_usage, 2),
+            metrics = {
+                "cpu": round(container.cpu_usage, 2),
+                "memory": round(container.memory_usage, 2),
+                "latency": round(container.latency, 2),
+                "rps": container.requests_per_second,
             }
-            client.publish(topic + "cpu", json.dumps(payload))
 
-            payload = {
-                "value" : round(container.memory_usage, 2),
-            }
-            client.publish(topic + "memory", json.dumps(payload))
+            for metric, value in metrics.items():
+                payload = {
+                    "timestamp": timestamp,
+                    "value": value
+                }
+                client.publish(topic_base + metric, json.dumps(payload))
 
-            payload = {
-                "value" : round(container.latency, 2),
-            }
-            client.publish(topic + "latency", json.dumps(payload))
-
-            payload = {
-                "value" : container.requests_per_second,
-            }
-            client.publish(topic + "rps", json.dumps(payload))
-            
-    for m in all_metrics:
-        if m["cpu"] > 80:
-            client.publish(TOPIC_LOGS, json.dumps({
-                "container": m["container"],
-                "cluster": m["cluster"],
-                "level": "ERROR",
-                "message": "High CPU load detected",
-                "timestamp": time.time()
-            }))
-        elif m["status"] == "CRASHED":
-            client.publish(TOPIC_LOGS, json.dumps({
-                "container": m["container"],
-                "cluster": m["cluster"],
-                "level": "CRITICAL",
-                "message": "Service unreachable",
-                "timestamp": time.time()
-            }))
-
-    time.sleep(5)
+    # Sleep
+    time.sleep(PUBLISH_INTERVAL)

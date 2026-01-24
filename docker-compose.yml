@@ -63,6 +63,17 @@ services:
     networks:
       - aiops_network
 
+  # ---------------------------------------------------
+  # 5. ANALYZER (MAPE-K: Analyze)
+  # ---------------------------------------------------
+  analyzer:
+    build: ./analyzer
+    container_name: analyzer
+    depends_on:
+      - influxdb
+    networks:
+      - aiops_network
+
 # Define a custom network so containers can talk to each other by name
 networks:
   aiops_network:
