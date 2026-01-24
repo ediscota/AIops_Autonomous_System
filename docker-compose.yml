@@ -32,7 +32,7 @@ services:
   # ---------------------------------------------------
   influxdb:
     image: influxdb:2.7
-    container_name: influxdb
+    container_name: AIops_influxdb
     restart: always
     ports:
       - "8086:8086"

@@ -6,15 +6,11 @@ INFLUX_TOKEN = "my-super-secret-admin-token"
 INFLUX_ORG = "AIops_org"
 INFLUX_BUCKET = "AIops_bucket"
 
-CPU_THRESHOLD = 5.0 # TODO
-MEMORY_THRESHOLD = 5.0
-LATENCY_THRESHOLD = 5.0
 ANALYSIS_INTERVAL = 5 # seconds
 
 class Analyzer:
     def __init__(self):
-        print("[Analyzer] Starting Analyzer...")
-
+        print("[Analyzer] Connecting to InfluxDB...")
         while True:
             try:
                 self.client = InfluxDBClient(
@@ -23,22 +19,16 @@ class Analyzer:
                     org=INFLUX_ORG
                 )
                 self.query_api = self.client.query_api()
-
-                # Test query
-                result = self.query_api.query(
-                    f'from(bucket:"{INFLUX_BUCKET}") |> range(start: -10m)'
-                )
-
-                print("[Analyzer] Connected to InfluxDB")
-                print(f"[Analyzer] Test query tables: {len(result)}")
+                # Simple health check query
+                self.client.health()
+                print("[Analyzer] Connected to InfluxDB!")
                 break
-
             except Exception as e:
                 print(f"[Analyzer] Waiting for InfluxDB... ({e})")
-                time.sleep(5)
+                time.sleep(2)  # Wait before retrying
 
     def analyze_metrics(self):
-        print("\n[Analyzer] Running metrics analysis...")
+        user_prompt = "" 
 
         query = f'''
         from(bucket: "{INFLUX_BUCKET}")
@@ -53,38 +43,37 @@ class Analyzer:
         |> last()
         '''
 
-        tables = self.query_api.query(query)
+        try:
+            tables = self.query_api.query(query)
 
-        # Debug
-        print(f"[DEBUG] Number of tables returned: {len(tables)}")
+            # If Influx is ready but simply has no data yet (Telegraf buffering)
+            if not tables:
+                print("[Analyzer] Query executed successfully, but no data found yet (waiting for Monitor)...")
+                return
 
-        if not tables:
-            print("[Analyzer] No data returned")
-            return
+            for table in tables:
+                for record in table.records:
+                    metric = record["metric"]
+                    value = record.get_value()
+                    cluster = record["cluster"]
+                    container = record["container"]
+                    
+                    user_prompt += (
+                        f"[METRIC] cluster={cluster} "
+                        f"container={container} "
+                        f"{metric}={value}\n"
+                    )
 
-        total_records = 0
-        for idx, table in enumerate(tables):
-            num_records = len(table.records)
-            total_records += num_records
-            print(f"[DEBUG] Table {idx}: {num_records} records")
+            if user_prompt:
+                print("--- Data for LLM ---")
+                print(user_prompt)
+                print("--------------------")
 
-            for record in table.records:
-                metric = record["metric"]
-                value = record.get_value()
-                cluster = record["cluster"]
-                container = record["container"]
-
-                print(
-                    f"[METRIC] cluster={cluster} "
-                    f"container={container} "
-                    f"{metric}={value}"
-                )
-
-        print(f"[DEBUG] Total records across all tables: {total_records}")
-
+        except Exception as e:
+            print(f"[Analyzer] Error during query: {e}")
 
     def run(self):
-        print("[Analyzer] Entering analysis loop...")
+        print("[Analyzer] Starting analysis loop...")
         while True:
             self.analyze_metrics()
             time.sleep(ANALYSIS_INTERVAL)

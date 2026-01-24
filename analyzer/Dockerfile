@@ -7,4 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY analyzer.py .
 
-CMD ["python", "analyzer.py"]
+CMD ["python", "-u", "analyzer.py"]
