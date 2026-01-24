@@ -27,6 +27,42 @@ services:
     networks:
       - aiops_network
 
+  # ---------------------------------------------------
+  # 3. DATABASE (InfluxDB)
+  # ---------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
+      - DOCKER_INFLUXDB_INIT_ORG=AIops_org
+      - DOCKER_INFLUXDB_INIT_BUCKET=AIops_bucket
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-admin-token
+    volumes:
+      - ./influxdb/data:/var/lib/influxdb2
+    networks:
+      - aiops_network
+
+  # ---------------------------------------------------
+  # 4. DATA COLLECTOR (Telegraf)
+  # ---------------------------------------------------
+  telegraf:
+    image: telegraf:latest
+    container_name: telegraf
+    restart: always
+    depends_on:
+      - influxdb
+      - mosquitto
+    volumes:
+      - ./monitor/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    networks:
+      - aiops_network
+
 # Define a custom network so containers can talk to each other by name
 networks:
   aiops_network:

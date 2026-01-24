@@ -1,0 +1,11 @@
+influxdb/data/
+influxdb/wal/
+influxdb/meta/
+influxdb/logs/
+
+mosquitto/data/
+mosquitto/log/
+
+*.log
+*.tmp
+.DS_Store

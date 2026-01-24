@@ -105,11 +105,29 @@ while True:
 
     for cluster in clusters.values():
         cluster.update_state()
-        metrics = cluster.get_metrics()
-        all_metrics.extend(metrics)
+        for container in cluster.containers:
+            topic = f"AIops/metrics/cluster_{cluster.cluster_id}/container_{container.name}/"
 
-    client.publish(TOPIC_METRICS, json.dumps(all_metrics))
+            payload = {
+                "value" : round(container.cpu_usage, 2),
+            }
+            client.publish(topic + "cpu", json.dumps(payload))
 
+            payload = {
+                "value" : round(container.memory_usage, 2),
+            }
+            client.publish(topic + "memory", json.dumps(payload))
+
+            payload = {
+                "value" : round(container.latency, 2),
+            }
+            client.publish(topic + "latency", json.dumps(payload))
+
+            payload = {
+                "value" : container.requests_per_second,
+            }
+            client.publish(topic + "rps", json.dumps(payload))
+            
     for m in all_metrics:
         if m["cpu"] > 80:
             client.publish(TOPIC_LOGS, json.dumps({
