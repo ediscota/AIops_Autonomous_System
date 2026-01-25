@@ -71,8 +71,25 @@ services:
     container_name: analyzer
     depends_on:
       - influxdb
+      - ollama
     networks:
       - aiops_network
+
+  ollama:
+    build:
+      context: ./ollama_docker
+    container_name: ollama
+    environment:
+      - OLLAMA_MODEL=${MODEL_NAME:-tinyllama} # Put the model name here
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - aiops_network
+
+volumes:
+  ollama_data:
 
 # Define a custom network so containers can talk to each other by name
 networks:
