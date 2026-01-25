@@ -78,7 +78,7 @@ services:
   ollama:
     build:
       context: ./ollama_docker
-    container_name: ollama
+    container_name: analyzer_ollama
     environment:
       - OLLAMA_MODEL=${MODEL_NAME:-tinyllama} # Put the model name here
     volumes:
