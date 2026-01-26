@@ -1,25 +1,22 @@
 import time
 import json
-import os
 import configparser
 import paho.mqtt.client as mqtt
 from webapp import Cluster, Container
 
-CONFIG_FILE = "config.ini"
-
 # Config parsing
 config = configparser.ConfigParser()
-config.read(CONFIG_FILE)
+config.read("config.ini")
 
-BROKER = config["mqtt"]["client_address"]
-PORT = int(config["mqtt"]["port"])
+MQTT_BROKER = config["mqtt"]["client_address"]
+MQTT_PORT = int(config["mqtt"]["port"])
 
-num_containers = int(config["general"]["num_containers"])
-num_clusters = int(config["general"]["num_clusters"])
+NUM_CONTAINERS = int(config["general"]["num_containers"])
+NUM_CLUSTERS = int(config["general"]["num_clusters"])
 
-# Create containers
+# Create the containers
 containers = []
-for i in range(num_containers):
+for i in range(NUM_CONTAINERS):
     section = f"container_{i}"
     name = config[section]["name"]
     cluster_id = int(config[section]["cluster"])
@@ -27,16 +24,15 @@ for i in range(num_containers):
 
 # Group containers by cluster
 clusters = {}
-for cid in range(num_clusters):
+for cid in range(NUM_CLUSTERS):
     clusters[cid] = Cluster(
         cluster_id=cid,
         containers=[c for c in containers if c.cluster_id == cid]
     )
 
-print("\n========== DEBUG CONFIGURATION ==========")
-print(f"MQTT Broker: {BROKER}:{PORT}")
-print(f"Num clusters: {num_clusters}")
-print(f"Num containers: {num_containers}")
+print(f"MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}")
+print(f"Number of clusters: {NUM_CLUSTERS}")
+print(f"Number of containers: {NUM_CONTAINERS}")
 
 print("\n--- Containers ---")
 for c in containers:
@@ -49,34 +45,29 @@ for cid, cluster in clusters.items():
         print("No containers in this cluster!")
     for c in cluster.containers:
         print(f"  - {c.name}")
-print("===========================================\n")
 
-# MQTT Setup
-client = mqtt.Client()
-
+# Waiting for MQTT
 while True:
     try:
-        client.connect(BROKER, PORT, 60)
+        client = mqtt.Client()
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_start()
+        print("[Managed Resources] MQTT ready")
         break
-    except:
-        print("Waiting for Mosquitto broker...")
-        time.sleep(3)
+    except Exception as e:
+        print(f"[Managed Resources] MQTT not ready: {e}")
+        time.sleep(2)
 
-client.loop_start()
-print("Simulation started...")
-
+print("[Managed Resources] Started")
 # Main loop
-import time
-import json
-
 PUBLISH_INTERVAL = 30  # seconds
 
 while True:
-    timestamp = time.time()
-
     # Update all clusters states
     for cluster in clusters.values():
         cluster.update_state()
+
+    timestamp = time.time()
 
     # Publish metrics
     for cluster in clusters.values():

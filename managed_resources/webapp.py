@@ -36,7 +36,7 @@ class Container:
 class Cluster:
     def __init__(self, cluster_id, containers):
         self.cluster_id = cluster_id
-        self.containers = containers  # lista di Container
+        self.containers = containers
 
     def update_state(self):
         for c in self.containers:

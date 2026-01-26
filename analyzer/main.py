@@ -1,19 +1,28 @@
 import time
 import json
+import requests
+import configparser
 import llm_service
 import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient
 
-# Config
-MQTT_BROKER = "mosquitto"
+# Config parsing
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+MQTT_BROKER = config["mqtt"]["client_address"]
+MQTT_PORT = int(config["mqtt"]["port"])
+
+INFLUX_URL = config["influx"]["url"]
+INFLUX_TOKEN = config["influx"]["token"]
+INFLUX_ORG = config["influx"]["org"]
+INFLUX_BUCKET = config["influx"]["bucket"]
+
+OLLAMA_URL = config["ollama"]["url"]
+OLLAMA_MODEL = config["ollama"]["model"]
+
 MQTT_TOPIC = "AIops/analyzer"
-
-INFLUX_URL = "http://influxdb:8086"
-INFLUX_TOKEN = "my-super-secret-admin-token"
-INFLUX_ORG = "AIops_org"
-INFLUX_BUCKET = "AIops_bucket"
-
-LOOP_INTERVAL = 5  # seconds
+LOOP_INTERVAL = 30  # seconds
 
 def collect_metrics(query_api) -> str:
     prompt = ""
@@ -39,36 +48,49 @@ def collect_metrics(query_api) -> str:
         print(f"[Analyzer] Error querying InfluxDB: {e}")
     return prompt
 
-# MQTT Setup
-mqtt_client = mqtt.Client()
-connected = False
-while not connected:
-    try:
-        mqtt_client.connect(MQTT_BROKER, 1883, 60)
-        mqtt_client.loop_start()
-        connected = True
-    except Exception as e:
-        print(f"[Analyzer] Waiting for MQTT broker... ({e})")
-        time.sleep(2)
-
-# Connection to InfluxDB with retry loop
-print("[Analyzer] Connecting to InfluxDB...")
+# Waiting for MQTT
 while True:
     try:
-        client = InfluxDBClient(
-            url=INFLUX_URL,
-            token=INFLUX_TOKEN,
-            org=INFLUX_ORG
-        )
-        health = client.health()
-        if health.status != "pass":
-            raise Exception(f"InfluxDB not ready: {health}")
-        query_api = client.query_api()
-        print("[Analyzer] Connected to InfluxDB!")
+        client = mqtt.Client()
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_start()
+        print("[Analyzer] MQTT ready")
         break
     except Exception as e:
-        print(f"[Analyzer] Waiting for InfluxDB... ({e})")
+        print(f"[Analyzer] MQTT not ready: {e}")
+        time.sleep(2)
+
+# Waiting for InfluxDB
+while True:
+    try:
+        client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+        health = client.health()
+        if health.status == "pass":
+            query_api = client.query_api()
+            print("[Analyzer] InfluxDB ready")
+            break
+        else:
+            raise Exception(health.message)
+    except Exception as e:
+        print(f"[Analyzer] InfluxDB not ready: {e}")
         time.sleep(3)
+
+# Waiting for Ollama
+payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": "ping",
+        "stream": False
+    }
+
+while True:
+    try:
+        r = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        r.raise_for_status()
+        print("[Analyzer] Ollama ready")
+        break
+    except Exception as e:
+        print(f"[Analyzer] Ollama not ready: {e}")
+        time.sleep(5)
 
 print("[Analyzer] Started")
 
@@ -77,12 +99,13 @@ while True:
     metrics = collect_metrics(query_api)
 
     if metrics:
+        print("[Analyzer] Metrics collected")
         response = llm_service.send_to_llm(metrics)
         if response is None:
             print("[Analyzer] No response from LLM, skipping publish")
         else:
             print("[Analyzer] Publishing anomalies")
-            mqtt_client.publish(
+            client.publish(
                 MQTT_TOPIC,
                 json.dumps({
                     "timestamp": time.time(),

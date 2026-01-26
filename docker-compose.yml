@@ -26,6 +26,8 @@ services:
       - mosquitto
     networks:
       - aiops_network
+    volumes:
+      - ./config/config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 3. DATABASE (InfluxDB)
@@ -75,6 +77,8 @@ services:
       - ollama_docker
     networks:
       - aiops_network
+    volumes:
+      - ./config/config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 6. PLANNER
@@ -87,6 +91,20 @@ services:
       - ollama_docker
     networks:
       - aiops_network
+    volumes:
+      - ./config/config.ini:/app/config.ini:ro
+
+  # ---------------------------------------------------
+  # 7. Executor
+  # ---------------------------------------------------
+  # executor:
+  #   build: ./executor
+  #   container_name: executor
+  #   depends_on:
+  #     - mosquitto
+  #     - ollama_docker
+  #   networks:
+  #     - aiops_network
 
   ollama_docker:
     build:
