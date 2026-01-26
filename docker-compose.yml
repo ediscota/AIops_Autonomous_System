@@ -64,21 +64,34 @@ services:
       - aiops_network
 
   # ---------------------------------------------------
-  # 5. ANALYZER (MAPE-K: Analyze)
+  # 5. ANALYZER
   # ---------------------------------------------------
   analyzer:
     build: ./analyzer
     container_name: analyzer
     depends_on:
+      - mosquitto
       - influxdb
-      - ollama
+      - ollama_docker
     networks:
       - aiops_network
 
-  ollama:
+  # ---------------------------------------------------
+  # 6. PLANNER
+  # ---------------------------------------------------
+  planner:
+    build: ./planner
+    container_name: planner
+    depends_on:
+      - mosquitto
+      - ollama_docker
+    networks:
+      - aiops_network
+
+  ollama_docker:
     build:
       context: ./ollama_docker
-    container_name: analyzer_ollama
+    container_name: ollama_docker
     environment:
       - OLLAMA_MODEL=${MODEL_NAME:-tinyllama} # Put the model name here
     volumes:
@@ -87,6 +100,7 @@ services:
       - "11434:11434"
     networks:
       - aiops_network
+    restart: unless-stopped
 
 volumes:
   ollama_data:

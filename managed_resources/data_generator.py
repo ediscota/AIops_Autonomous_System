@@ -7,9 +7,7 @@ from webapp import Cluster, Container
 
 CONFIG_FILE = "config.ini"
 
-# --------------------
-# CONFIG PARSING
-# --------------------
+# Config parsing
 config = configparser.ConfigParser()
 config.read(CONFIG_FILE)
 
@@ -53,9 +51,7 @@ for cid, cluster in clusters.items():
         print(f"  - {c.name}")
 print("===========================================\n")
 
-# --------------------
-# MQTT SETUP
-# --------------------
+# MQTT Setup
 client = mqtt.Client()
 
 while True:
@@ -69,13 +65,11 @@ while True:
 client.loop_start()
 print("Simulation started...")
 
-# --------------------
-# MAIN LOOP
-# --------------------
+# Main loop
 import time
 import json
 
-PUBLISH_INTERVAL = 5  # seconds
+PUBLISH_INTERVAL = 30  # seconds
 
 while True:
     timestamp = time.time()
