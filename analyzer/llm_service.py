@@ -1,7 +1,7 @@
 import requests
 
 OLLAMA_URL = "http://ollama_docker:11434/api/generate"
-OLLAMA_MODEL = "tinyllama"
+OLLAMA_MODEL = "llama3.1:8b"
 ANALYZER_PROMPT = """
 You are an AI Ops Analyzer.
 Given the following metrics, detect anomalies and return a brief description of the issues.

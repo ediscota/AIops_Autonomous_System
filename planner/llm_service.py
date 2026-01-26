@@ -2,7 +2,7 @@ import time
 import requests
 
 OLLAMA_URL = "http://ollama_docker:11434/api/generate"
-OLLAMA_MODEL = "tinyllama"
+OLLAMA_MODEL = "llama3.1:8b"
 PLANNER_PROMPT = """
 You are an AI Ops Planner.
 Given the following description of some issues in a webapp, return for each container one of these solutions:

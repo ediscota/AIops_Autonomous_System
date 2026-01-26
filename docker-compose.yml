@@ -93,7 +93,7 @@ services:
       context: ./ollama_docker
     container_name: ollama_docker
     environment:
-      - OLLAMA_MODEL=${MODEL_NAME:-tinyllama} # Put the model name here
+      - OLLAMA_MODEL=${MODEL_NAME:-llama3.1:8b} # Put the model name here
     volumes:
       - ollama_data:/root/.ollama
     ports:
