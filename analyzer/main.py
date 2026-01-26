@@ -51,9 +51,9 @@ def collect_metrics(query_api) -> str:
 # Waiting for MQTT
 while True:
     try:
-        client = mqtt.Client()
-        client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        client.loop_start()
+        mqtt_client = mqtt.Client()
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        mqtt_client.loop_start()
         print("[Analyzer] MQTT ready")
         break
     except Exception as e:
@@ -63,10 +63,10 @@ while True:
 # Waiting for InfluxDB
 while True:
     try:
-        client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-        health = client.health()
+        influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+        health = influx_client.health()
         if health.status == "pass":
-            query_api = client.query_api()
+            query_api = influx_client.query_api()
             print("[Analyzer] InfluxDB ready")
             break
         else:
@@ -105,7 +105,7 @@ while True:
             print("[Analyzer] No response from LLM, skipping publish")
         else:
             print("[Analyzer] Publishing anomalies")
-            client.publish(
+            mqtt_client.publish(
                 MQTT_TOPIC,
                 json.dumps({
                     "timestamp": time.time(),
