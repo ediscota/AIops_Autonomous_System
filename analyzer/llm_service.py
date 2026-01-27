@@ -1,5 +1,5 @@
-import configparser
 import requests
+import configparser
 
 # Config parsing
 config = configparser.ConfigParser()

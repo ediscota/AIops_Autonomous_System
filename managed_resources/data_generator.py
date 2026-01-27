@@ -14,6 +14,8 @@ MQTT_PORT = int(config["mqtt"]["port"])
 NUM_CONTAINERS = int(config["general"]["num_containers"])
 NUM_CLUSTERS = int(config["general"]["num_clusters"])
 
+PUBLISH_INTERVAL = 15  # seconds
+
 # Create the containers
 containers = []
 for i in range(NUM_CONTAINERS):
@@ -60,7 +62,6 @@ while True:
 
 print("[Managed Resources] Started")
 # Main loop
-PUBLISH_INTERVAL = 30  # seconds
 
 while True:
     # Update all clusters states
@@ -80,8 +81,8 @@ while True:
             metrics = {
                 "cpu": round(container.cpu_usage, 2),
                 "memory": round(container.memory_usage, 2),
-                "latency": round(container.latency, 2),
-                "rps": container.requests_per_second,
+                "service_time": round(container.service_time, 2),
+                "instances": container.number_of_instances,
             }
 
             for metric, value in metrics.items():

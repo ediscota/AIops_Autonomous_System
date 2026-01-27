@@ -2,8 +2,10 @@ import time
 import requests
 import configparser
 
+# Config parsing
 config = configparser.ConfigParser()
 config.read("config.ini")
+
 OLLAMA_URL = config["ollama"]["url"]
 OLLAMA_MODEL = config["ollama"]["model"]
 TIMEOUT = 120 # seconds

@@ -5,28 +5,34 @@ class Container:
         self.name = name
         self.cluster_id = cluster_id
         self.status = "RUNNING"  # RUNNING, CRASHED, STOPPED
-        self.cpu_usage = 10.0
-        self.memory_usage = 100
-        self.latency = 50
-        self.requests_per_second = 5
+        self.cpu_usage = 0.0
+        self.memory_usage = 128 # megabytes of RAM used
+        self.service_time = 50 # milliseconds it takes to complete one job
+        self.throughput = 5 # jobs completed per unit of time
+        self.number_of_instances = 1
 
     def tick(self):
         if self.status == "CRASHED":
             self.cpu_usage = 0
-            self.latency = 0
+            self.service_time = 0
+            self.service_time = 0
+            self.throughput = 0
+            self.number_of_instances = 0
             return
 
-        self.cpu_usage = max(0, min(100, self.cpu_usage + random.uniform(-5, 5)))
-        self.memory_usage = max(50, self.memory_usage + random.uniform(-10, 10))
+        self.cpu_usage = max(0, min(100, self.cpu_usage + random.uniform(-10, 10)))
+        self.memory_usage = max(64, self.memory_usage + random.uniform(-32, 32))
 
-        base_latency = 50 if self.cpu_usage < 80 else 500
-        self.latency = max(10, base_latency + random.uniform(-20, 20))
+        base_service_time = 50 if self.cpu_usage < 75 else 200
+        self.service_time = max(10, base_service_time + random.uniform(-20, 20))
 
     def restart(self):
         print(f"[{self.name}] Restarting...")
         self.status = "RUNNING"
-        self.cpu_usage = 20
-        self.latency = 50
+        self.cpu_usage = 0.0
+        self.memory_usage = 128
+        self.service_time = 50
+        self.throughput = 5
 
     def kill(self):
         print(f"[{self.name}] Killed!")
@@ -41,19 +47,6 @@ class Cluster:
     def update_state(self):
         for c in self.containers:
             c.tick()
-
-    def get_metrics(self):
-        return [
-            {
-                "cluster": self.cluster_id,
-                "container": c.name,
-                "status": c.status,
-                "cpu": round(c.cpu_usage, 2),
-                "memory": round(c.memory_usage, 2),
-                "latency": round(c.latency, 2)
-            }
-            for c in self.containers
-        ]
 
     def execute_action(self, action_payload):
         action = action_payload.get("action")

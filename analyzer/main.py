@@ -21,11 +21,17 @@ INFLUX_BUCKET = config["influx"]["bucket"]
 OLLAMA_URL = config["ollama"]["url"]
 OLLAMA_MODEL = config["ollama"]["model"]
 
-MQTT_TOPIC = "AIops/analyzer"
-LOOP_INTERVAL = 30  # seconds
+CPU_THRESHOLD = float(config["analyzer"]["cpu_threshold"])
+MEMORY_THRESHOLD = int(config["analyzer"]["memory_threshold"])
+SERVICE_TIME_THRESHOLD = int(config["analyzer"]["service_time_threshold"])
+INSTANCES_THRESHOLD = int(config["analyzer"]["instances_threshold"])
 
-def collect_metrics(query_api) -> str:
-    prompt = ""
+MQTT_TOPIC = "AIops/analyzer"
+LOOP_INTERVAL = 15  # seconds
+
+def collect_metrics(query_api) -> dict:
+    metrics = {}
+
     query = f'''
     from(bucket: "{INFLUX_BUCKET}")
     |> range(start: -1m)
@@ -35,18 +41,66 @@ def collect_metrics(query_api) -> str:
     )
     |> last()
     '''
+
     try:
         tables = query_api.query(query)
         for table in tables:
             for record in table.records:
-                prompt += (
-                    f"[METRIC] cluster={record['cluster']} "
-                    f"container={record['container']} "
-                    f"{record['metric']}={record.get_value()}\n"
-                )
+                cluster = record["cluster"]
+                container = record["container"]
+                metric = record["metric"]
+                value = record.get_value()
+
+                metrics.setdefault(cluster, {})
+                metrics[cluster].setdefault(container, {})
+                metrics[cluster][container][metric] = value
+
     except Exception as e:
         print(f"[Analyzer] Error querying InfluxDB: {e}")
-    return prompt
+
+    return metrics
+
+def evaluate_metrics(metrics: dict) -> dict:
+    anomalies = {}
+
+    for cluster, containers in metrics.items():
+        for container, values in containers.items():
+
+            container_anomalies = {}
+
+            cpu = values.get("cpu")
+            if cpu is not None and cpu > CPU_THRESHOLD:
+                container_anomalies["cpu"] = {
+                    "value": cpu,
+                    "threshold": CPU_THRESHOLD,
+                }
+
+            memory = values.get("memory")
+            if memory is not None and memory > MEMORY_THRESHOLD:
+                container_anomalies["memory"] = {
+                    "value": memory,
+                    "threshold": MEMORY_THRESHOLD,
+                }
+
+            service_time = values.get("service_time")
+            if service_time is not None and service_time > SERVICE_TIME_THRESHOLD:
+                container_anomalies["service_time"] = {
+                    "value": service_time,
+                    "threshold": SERVICE_TIME_THRESHOLD,
+                }
+
+            instances = values.get("instances")
+            if instances is not None and instances > INSTANCES_THRESHOLD:
+                container_anomalies["instances"] = {
+                    "value": instances,
+                    "threshold": INSTANCES_THRESHOLD,
+                }
+
+            if container_anomalies:
+                anomalies.setdefault(cluster, {})
+                anomalies[cluster][container] = container_anomalies
+
+    return anomalies
 
 # Waiting for MQTT
 while True:
@@ -98,19 +152,24 @@ print("[Analyzer] Started")
 while True:
     metrics = collect_metrics(query_api)
 
-    if metrics:
-        print("[Analyzer] Metrics collected")
-        response = llm_service.send_to_llm(metrics)
-        if response is None:
-            print("[Analyzer] No response from LLM, skipping publish")
-        else:
-            print("[Analyzer] Publishing anomalies")
-            mqtt_client.publish(
-                MQTT_TOPIC,
-                json.dumps({
-                    "timestamp": time.time(),
-                    "response": response
-                })
-            )
+    if not metrics:
+        print("[Analyzer] No metrics found")
+        time.sleep(LOOP_INTERVAL)
+        continue
+
+    anomalies = evaluate_metrics(metrics)
+
+    if anomalies:
+        print("[Analyzer] Anomalies detected")
+        print(anomalies)
+        mqtt_client.publish(
+            MQTT_TOPIC,
+            json.dumps({
+                "timestamp": time.time(),
+                "anomalies": anomalies
+            })
+        )
+    else:
+        print("[Analyzer] No anomalies detected")
 
     time.sleep(LOOP_INTERVAL)

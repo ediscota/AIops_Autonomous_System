@@ -1,89 +1,110 @@
 import time
 import json
-import requests
 import configparser
-import llm_service
 import paho.mqtt.client as mqtt
 
-# Config parsing
+# Config
 config = configparser.ConfigParser()
 config.read("config.ini")
 
 MQTT_BROKER = config["mqtt"]["client_address"]
 MQTT_PORT = int(config["mqtt"]["port"])
 
-OLLAMA_URL = config["ollama"]["url"]
-OLLAMA_MODEL = config["ollama"]["model"]
-
 INPUT_TOPIC = "AIops/analyzer"
 OUTPUT_TOPIC = "AIops/planner"
 
+def decide_action(metric, value, threshold):
+    ratio = (value - threshold) / threshold
+
+    match metric:
+
+        case "cpu":
+            if ratio > 0.5:
+                return "restart", "critical"
+            elif ratio > 0.2:
+                return "scale_up", "warning"
+            
+        case "memory":
+            if ratio > 0.5:
+                return "restart", "critical"
+            elif ratio > 0.2:
+                return "scale_up", "warning"
+
+        case "service_time":
+            if ratio > 0.3:
+                return "restart", "critical"
+            elif ratio > 0.1:
+                return "scale_up", "warning"
+
+        case "instances":
+            if value > threshold:
+                return "scale_down", "warning"
+
+        case _:
+            # metric non riconosciuta
+            return None, None
+
+    return None, None
+
+
 def on_message(client, userdata, msg):
     try:
-        description = msg.payload.decode()
-        if not description.strip():
-            print("[Planner] Empty description received, skipping")
+        payload = json.loads(msg.payload.decode())
+        anomalies = payload.get("anomalies", {})
+
+        if not anomalies:
+            print("[Planner] No anomalies in message")
             return
 
-        print("[Planner] Description received from Analyzer")
+        actions = []
 
-        # Pass the text directly to the LLM, which is expected to return JSON
-        plan_raw = llm_service.send_to_llm(description)
-        if not plan_raw:
-            print("[Planner] LLM returned no output, skipping")
-            return
+        for cluster, containers in anomalies.items():
+            for container, metrics in containers.items():
+                for metric, data in metrics.items():
+                    value = data["value"]
+                    threshold = data["threshold"]
 
-        try:
-            plan = json.loads(plan_raw)
-        except Exception as e:
-            print("[Planner] Invalid JSON returned by LLM:")
-            print(plan_raw)
-            return
+                    action, severity = decide_action(metric, value, threshold)
+                    if action:
+                        actions.append({
+                            "cluster": cluster,
+                            "container": container,
+                            "metric": metric,
+                            "action": action,
+                            "severity": severity,
+                            "value": value,
+                            "threshold": threshold
+                        })
 
-        print("[Planner] Publishing plan")
-        client.publish(
-            OUTPUT_TOPIC,
-            json.dumps({
-                "timestamp": time.time(),
-                "plan": plan
-            })
-        )
+        if actions:
+            print("[Planner] Actions decided:", actions)
+            client.publish(
+                OUTPUT_TOPIC,
+                json.dumps({
+                    "timestamp": time.time(),
+                    "actions": actions
+                })
+            )
+        else:
+            print("[Planner] No actions required")
 
     except Exception as e:
-        print(f"[Planner] Unexpected error: {e}")
+        print(f"[Planner] Error processing message: {e}")
 
 
-# Waiting for MQTT
+# MQTT setup
 while True:
     try:
         client = mqtt.Client()
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.subscribe(INPUT_TOPIC)
+        client.on_message = on_message
         client.loop_start()
         print("[Planner] MQTT ready")
         break
     except Exception as e:
         print(f"[Planner] MQTT not ready: {e}")
         time.sleep(2)
-
-client.subscribe(INPUT_TOPIC)
-client.on_message = on_message
-
-# Waiting for Ollama
-payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": "ping",
-        "stream": False
-    }
-
-while True:
-    try:
-        r = requests.post(OLLAMA_URL, json=payload, timeout=60)
-        r.raise_for_status()
-        print("[Planner] Ollama ready")
-        break
-    except Exception as e:
-        print(f"[Planner] Ollama not ready: {e}")
-        time.sleep(5)
 
 print("[Planner] Started")
 print("[Planner] Waiting for anomalies...")
