@@ -1,8 +1,11 @@
 import time
 import requests
+import configparser
 
-OLLAMA_URL = "http://ollama_docker:11434/api/generate"
-OLLAMA_MODEL = "llama3.1:8b"
+config = configparser.ConfigParser()
+config.read("config.ini")
+OLLAMA_URL = config["ollama"]["url"]
+OLLAMA_MODEL = config["ollama"]["model"]
 TIMEOUT = 120 # seconds
 PLANNER_PROMPT = """
 You are an AI Ops Planner component inside an autonomous MAPE-K loop.

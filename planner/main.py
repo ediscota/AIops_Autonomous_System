@@ -35,7 +35,7 @@ def on_message(client, userdata, msg):
 
         try:
             plan = json.loads(plan_raw)
-        except json.JSONDecodeError:
+        except Exception as e:
             print("[Planner] Invalid JSON returned by LLM:")
             print(plan_raw)
             return

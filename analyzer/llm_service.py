@@ -1,7 +1,12 @@
+import configparser
 import requests
 
-OLLAMA_URL = "http://ollama_docker:11434/api/generate"
-OLLAMA_MODEL = "llama3.1:8b"
+# Config parsing
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+OLLAMA_URL = config["ollama"]["url"]
+OLLAMA_MODEL = config["ollama"]["model"]
 TIMEOUT = 120 # seconds
 ANALYZER_PROMPT = """
 You are an AI Ops Analyzer component inside an autonomous MAPE-K loop.
