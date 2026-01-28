@@ -54,7 +54,7 @@ while True:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.subscribe(EXECUTE_TOPIC)
         client.message_callback_add(EXECUTE_TOPIC, on_execute_message)
-        client.loop_start()
+        client.loop_start() 
         print("[Managed Resources] MQTT ready")
         break
     except Exception as e:

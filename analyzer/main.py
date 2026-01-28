@@ -170,7 +170,16 @@ while True:
                 "anomalies": anomalies
             })
         )
+        llm_service.send_to_llm(anomalies) 
     else:
         print("[Analyzer] No anomalies detected")
+        mqtt_client.publish(
+            llm_service.ANALYZER_LLM_TOPIC,
+            json.dumps({
+                "timestamp": time.time(),
+                "response": "No anomalies detected in the monitored containers."
+            })
+            
+        )
 
     time.sleep(LOOP_INTERVAL)

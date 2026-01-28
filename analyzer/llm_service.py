@@ -1,5 +1,9 @@
+import time
 import requests
 import configparser
+from influxdb_client import InfluxDBClient
+import paho.mqtt.client as mqtt
+import json
 
 # Config parsing
 config = configparser.ConfigParser()
@@ -8,36 +12,36 @@ config.read("config.ini")
 OLLAMA_URL = config["ollama"]["url"]
 OLLAMA_MODEL = config["ollama"]["model"]
 TIMEOUT = 120 # seconds
+
+MQTT_BROKER = config["mqtt"]["client_address"]
+MQTT_PORT = int(config["mqtt"]["port"])
+ANALYZER_LLM_TOPIC = "AIops/analyzer_llm_response"
 ANALYZER_PROMPT = """
-You are an AI Ops Analyzer component inside an autonomous MAPE-K loop.
+You are an AIOps expert monitoring a Kubernetes system.
+Your task is to summarize the current system health based strictly on the provided anomaly logs.
 
-Your task is to analyze runtime metrics of containers and identify operational problems.
-You must reason strictly based on the provided numeric values. Do NOT invent data.
-
-Metrics definitions:
-- cpu: CPU usage percentage (0–100)
-- memory: RAM usage in GB
-- latency: request latency in milliseconds
-- rps: requests per second
-
-Instructions:
-1. Analyze each container independently.
-2. Detect abnormal, degraded, or critical conditions.
-3. Describe WHAT the problem is and WHY it is happening.
-4. Use clear, technical, concise language.
-5. Do NOT suggest actions or solutions.
-6. If a container shows no issues, explicitly state that it is healthy.
-
-Output format:
-- Plain English text
-- One short paragraph per container
-- Clearly mention the container name in each paragraph
+Rules:
+1. Identify which cluster and container is failing.
+2. Mention the specific issue (e.g., High CPU, Latency, Crash).
+3. Be concise. Use maximum 2 sentences.
 
 Metrics:
 {metrics}
 """
 
-def send_to_llm(data):
+# Waiting for MQTT
+while True:
+    try:
+        mqtt_client = mqtt.Client()
+        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        mqtt_client.loop_start()
+        print("[Analyzer LLM Service] MQTT ready")
+        break
+    except Exception as e:
+        print(f"[Analyzer LLM Service] MQTT not ready: {e}")
+        time.sleep(2)
+
+def send_to_llm(data): #asincornous
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": ANALYZER_PROMPT.format(metrics=data),
@@ -51,8 +55,16 @@ def send_to_llm(data):
             timeout=TIMEOUT
         )
         response.raise_for_status()
-        return response.json().get("response")
 
+        mqtt_client.publish(
+            ANALYZER_LLM_TOPIC,
+            json.dumps({
+                "timestamp": time.time(),
+                "response": response.json().get("response")
+            })
+            
+        )
+    
     except requests.exceptions.ReadTimeout:
         print("[Analyzer] Ollama still warming up, skipping this cycle")
         return None
@@ -60,3 +72,4 @@ def send_to_llm(data):
     except Exception as e:
         print("[Analyzer] Ollama error:", e)
         return None
+    
