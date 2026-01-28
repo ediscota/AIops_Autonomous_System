@@ -1,9 +1,9 @@
 import time
-import requests
-import configparser
-from influxdb_client import InfluxDBClient
-import paho.mqtt.client as mqtt
 import json
+import requests
+import threading
+import configparser
+import paho.mqtt.client as mqtt
 
 # Config parsing
 config = configparser.ConfigParser()
@@ -11,10 +11,11 @@ config.read("config.ini")
 
 OLLAMA_URL = config["ollama"]["url"]
 OLLAMA_MODEL = config["ollama"]["model"]
-TIMEOUT = 120 # seconds
+TIMEOUT = 120  # seconds
 
 MQTT_BROKER = config["mqtt"]["client_address"]
 MQTT_PORT = int(config["mqtt"]["port"])
+
 ANALYZER_LLM_TOPIC = "AIops/analyzer_llm_response"
 ANALYZER_PROMPT = """
 You are an AIOps expert monitoring a Kubernetes system.
@@ -29,7 +30,7 @@ Metrics:
 {metrics}
 """
 
-# Waiting for MQTT
+# MQTT setup
 while True:
     try:
         mqtt_client = mqtt.Client()
@@ -41,7 +42,9 @@ while True:
         print(f"[Analyzer LLM Service] MQTT not ready: {e}")
         time.sleep(2)
 
-def send_to_llm(data): #asincornous
+
+# ---- Private method (blocking) ----
+def _send_to_llm_blocking(data):
     payload = {
         "model": OLLAMA_MODEL,
         "prompt": ANALYZER_PROMPT.format(metrics=data),
@@ -62,14 +65,22 @@ def send_to_llm(data): #asincornous
                 "timestamp": time.time(),
                 "response": response.json().get("response")
             })
-            
         )
-    
+
+        print("[Analyzer LLM Service] Response published")
+
     except requests.exceptions.ReadTimeout:
-        print("[Analyzer] Ollama still warming up, skipping this cycle")
-        return None
+        print("[Analyzer LLM Service] Ollama timeout")
 
     except Exception as e:
-        print("[Analyzer] Ollama error:", e)
-        return None
-    
+        print("[Analyzer LLM Service] Ollama error:", e)
+
+
+# ---- Public method (async) ----
+def send_to_llm(data):
+    thread = threading.Thread(
+        target=_send_to_llm_blocking,
+        args=(data,),
+        daemon=True
+    )
+    thread.start()

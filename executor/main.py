@@ -1,5 +1,5 @@
-import json
 import time
+import json
 import configparser
 import paho.mqtt.client as mqtt
 

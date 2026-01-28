@@ -2,8 +2,8 @@ import time
 import json
 import configparser
 import paho.mqtt.client as mqtt
-from queue import Queue
 
+from queue import Queue
 from webapp import Cluster, Container
 
 # Config parsing
@@ -16,7 +16,7 @@ MQTT_PORT = int(config["mqtt"]["port"])
 NUM_CONTAINERS = int(config["general"]["num_containers"])
 NUM_CLUSTERS = int(config["general"]["num_clusters"])
 
-PUBLISH_INTERVAL = 20  # seconds
+PUBLISH_INTERVAL = 20 # seconds
 EXECUTE_TOPIC = "AIops/execute"
 
 # Simulation state
@@ -35,7 +35,6 @@ clusters = {
     for cid in range(NUM_CLUSTERS)
 }
 
-# LIFO queue for EXECUTE
 execute_queue = Queue()
 
 # MQTT callback (NO STATE CHANGE)

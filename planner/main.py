@@ -1,6 +1,8 @@
 import time
 import json
+import requests
 import configparser
+import llm_service
 import paho.mqtt.client as mqtt
 
 # Config parsing
@@ -9,6 +11,9 @@ config.read("config.ini")
 
 MQTT_BROKER = config["mqtt"]["client_address"]
 MQTT_PORT = int(config["mqtt"]["port"])
+
+OLLAMA_URL = config["ollama"]["url"]
+OLLAMA_MODEL = config["ollama"]["model"]
 
 INPUT_TOPIC = "AIops/analyzer"
 OUTPUT_TOPIC = "AIops/planner"
@@ -85,8 +90,17 @@ def on_message(client, userdata, msg):
                     "actions": actions
                 })
             )
+            llm_service.send_to_llm(actions) 
+            print("[Analyzer] Prompt to LLM Sent")
         else:
             print("[Planner] No actions required")
+            client.publish(
+                llm_service.PLANNER_LLM_TOPIC,
+                json.dumps({
+                    "timestamp": time.time(),
+                    "response": "No actions required in the monitored containers."
+                })
+            )
 
     except Exception as e:
         print(f"[Planner] Error processing message: {e}")
@@ -105,6 +119,23 @@ while True:
     except Exception as e:
         print(f"[Planner] MQTT not ready: {e}")
         time.sleep(2)
+
+# Waiting for Ollama
+payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": "ping",
+        "stream": False
+    }
+
+while True:
+    try:
+        r = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        r.raise_for_status()
+        print("[Planner] Ollama ready")
+        break
+    except Exception as e:
+        print(f"[Planner] Ollama not ready: {e}")
+        time.sleep(5)
 
 print("[Planner] Started")
 print("[Planner] Waiting for anomalies...")
