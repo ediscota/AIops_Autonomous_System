@@ -3,7 +3,7 @@ import json
 import configparser
 import paho.mqtt.client as mqtt
 
-# Config
+# Config parsing
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -41,7 +41,7 @@ def decide_action(metric, value, threshold):
                 return "scale_down", "warning"
 
         case _:
-            # metric non riconosciuta
+            # unrecognized metric
             return None, None
 
     return None, None

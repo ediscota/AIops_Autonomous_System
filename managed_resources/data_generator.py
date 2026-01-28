@@ -14,9 +14,10 @@ MQTT_PORT = int(config["mqtt"]["port"])
 NUM_CONTAINERS = int(config["general"]["num_containers"])
 NUM_CLUSTERS = int(config["general"]["num_clusters"])
 
-PUBLISH_INTERVAL = 15  # seconds
+PUBLISH_INTERVAL = 20  # seconds
+EXECUTE_TOPIC = "AIops/execute"
 
-# Create the containers
+# Create containers and clusters
 containers = []
 for i in range(NUM_CONTAINERS):
     section = f"container_{i}"
@@ -24,7 +25,6 @@ for i in range(NUM_CONTAINERS):
     cluster_id = int(config[section]["cluster"])
     containers.append(Container(name, cluster_id))
 
-# Group containers by cluster
 clusters = {}
 for cid in range(NUM_CLUSTERS):
     clusters[cid] = Cluster(
@@ -32,27 +32,36 @@ for cid in range(NUM_CLUSTERS):
         containers=[c for c in containers if c.cluster_id == cid]
     )
 
-print(f"MQTT Broker: {MQTT_BROKER}:{MQTT_PORT}")
-print(f"Number of clusters: {NUM_CLUSTERS}")
-print(f"Number of containers: {NUM_CONTAINERS}")
+# MQTT callback
+def on_execute_message(client, userdata, msg):
+    # Executes the commands given by the executor
+    try:
+        command = json.loads(msg.payload.decode())
+        cluster_id = command["cluster"]
+        container_name = command["container"]
 
-print("\n--- Containers ---")
-for c in containers:
-    print(f"Container name={c.name}, cluster={c.cluster_id}, status={c.status}")
+        cluster = clusters.get(cluster_id)
+        if cluster:
+            action_payload = {
+                "action": command["action"],
+                "container": container_name,
+                "metric": command.get("metric"),
+                "severity": command.get("severity", "warning")
+            }
+            cluster.execute_action(action_payload)
+            print(f"[Managed Resources] Executed command: {action_payload}")
+        else:
+            print(f"[Managed Resources] Cluster {cluster_id} not found")
+    except Exception as e:
+        print(f"[Managed Resources] Error executing command: {e}")
 
-print("\n--- Clusters ---")
-for cid, cluster in clusters.items():
-    print(f"Cluster {cid}:")
-    if not cluster.containers:
-        print("No containers in this cluster!")
-    for c in cluster.containers:
-        print(f"  - {c.name}")
-
-# Waiting for MQTT
+# MQTT setup + subscribe
 while True:
     try:
         client = mqtt.Client()
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.subscribe(EXECUTE_TOPIC)
+        client.message_callback_add(EXECUTE_TOPIC, on_execute_message)
         client.loop_start()
         print("[Managed Resources] MQTT ready")
         break
@@ -61,36 +70,27 @@ while True:
         time.sleep(2)
 
 print("[Managed Resources] Started")
-# Main loop
 
+# Main loop
 while True:
-    # Update all clusters states
+    # Update container state
     for cluster in clusters.values():
         cluster.update_state()
 
     timestamp = time.time()
 
-    # Publish metrics
+    # Publish metrics on MQTT
     for cluster in clusters.values():
         for container in cluster.containers:
-            topic_base = (
-                f"AIops/metrics/cluster_{cluster.cluster_id}/"
-                f"container_{container.name}/"
-            )
-
+            topic_base = f"AIops/metrics/cluster_{cluster.cluster_id}/container_{container.name}/"
             metrics = {
                 "cpu": round(container.cpu_usage, 2),
                 "memory": round(container.memory_usage, 2),
                 "service_time": round(container.service_time, 2),
                 "instances": container.number_of_instances,
             }
-
             for metric, value in metrics.items():
-                payload = {
-                    "timestamp": timestamp,
-                    "value": value
-                }
+                payload = {"timestamp": timestamp, "value": value}
                 client.publish(topic_base + metric, json.dumps(payload))
 
-    # Sleep
     time.sleep(PUBLISH_INTERVAL)

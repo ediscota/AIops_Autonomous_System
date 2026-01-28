@@ -50,18 +50,50 @@ class Cluster:
 
     def execute_action(self, action_payload):
         action = action_payload.get("action")
-        target = action_payload.get("target")
+        target = action_payload.get("container")
+        severity = action_payload.get("severity", "warning")  # default is "warning"
 
         container = next((c for c in self.containers if c.name == target), None)
 
         if not container:
+            print(f"[Cluster {self.cluster_id}] Container {target} not found")
             return False
 
+        # Multiplier based on the severity of the action
+        multiplier = 2 if severity == "critical" else 1
+
         if action == "restart":
-            container.restart()
+            print(f"[Cluster {self.cluster_id}] Restarting {target}")
+            container.restart()  # resets all fields of the container
+
         elif action == "kill":
-            container.kill()
+            print(f"[Cluster {self.cluster_id}] Killing {target}")
+            container.kill()  # every field set to 0
+
+        elif action == "scale_up":
+            increment = multiplier
+            container.number_of_instances += increment
+            
+            container.cpu_usage = max(0, container.cpu_usage - 10 * increment)
+            container.memory_usage += 64 * increment
+            container.service_time = max(10, container.service_time - 5 * increment)
+            container.throughput += 2 * increment
+            print(f"[Cluster {self.cluster_id}] Scaling up {target} by {increment} instances "
+                f"(now {container.number_of_instances})")
+
+        elif action == "scale_down":
+            decrement = multiplier
+            container.number_of_instances = max(1, container.number_of_instances - decrement)
+            
+            container.cpu_usage += 10 * decrement
+            container.memory_usage = max(64, container.memory_usage - 32 * decrement)
+            container.service_time += 5 * decrement
+            container.throughput = max(1, container.throughput - 1 * decrement)
+            print(f"[Cluster {self.cluster_id}] Scaling down {target} by {decrement} instances "
+                f"(now {container.number_of_instances})")
+
         else:
-            print(f"Unknown action {action}")
+            print(f"[Cluster {self.cluster_id}] Unknown action {action}")
+            return False
 
         return True

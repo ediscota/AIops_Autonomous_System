@@ -4,6 +4,7 @@ import requests
 import configparser
 import llm_service
 import paho.mqtt.client as mqtt
+
 from influxdb_client import InfluxDBClient
 
 # Config parsing
@@ -27,7 +28,7 @@ SERVICE_TIME_THRESHOLD = int(config["analyzer"]["service_time_threshold"])
 INSTANCES_THRESHOLD = int(config["analyzer"]["instances_threshold"])
 
 MQTT_TOPIC = "AIops/analyzer"
-LOOP_INTERVAL = 15  # seconds
+LOOP_INTERVAL = 20 # seconds
 
 def collect_metrics(query_api) -> dict:
     metrics = {}

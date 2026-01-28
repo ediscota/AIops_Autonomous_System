@@ -1,6 +1,6 @@
 services:
   # ---------------------------------------------------
-  # 1. MESSAGE BROKER (The "Nervous System")
+  # 1. MESSAGE BROKER
   # ---------------------------------------------------
   mosquitto:
     image: eclipse-mosquitto:2.0
@@ -58,8 +58,8 @@ services:
     container_name: telegraf
     restart: always
     depends_on:
-      - influxdb
       - mosquitto
+      - influxdb
     volumes:
       - ./monitor/telegraf.conf:/etc/telegraf/telegraf.conf:ro
     networks:
@@ -88,6 +88,7 @@ services:
     container_name: planner
     depends_on:
       - mosquitto
+      - influxdb
       - ollama_docker
     networks:
       - aiops_network
@@ -95,17 +96,23 @@ services:
       - ./config/config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
-  # 7. Executor
+  # 7. EXECUTOR
   # ---------------------------------------------------
-  # executor:
-  #   build: ./executor
-  #   container_name: executor
-  #   depends_on:
-  #     - mosquitto
-  #     - ollama_docker
-  #   networks:
-  #     - aiops_network
+  executor:
+    build: ./executor
+    container_name: executor
+    depends_on:
+      - mosquitto
+      - influxdb
+      - ollama_docker
+    networks:
+      - aiops_network
+    volumes:
+      - ./config/config.ini:/app/config.ini:ro
 
+  # ---------------------------------------------------
+  # LLM EXPLAINER
+  # ---------------------------------------------------
   ollama_docker:
     build:
       context: ./ollama_docker

@@ -7,5 +7,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# We use python -u to force unbuffered stdout so logs show up in Docker immediately
 CMD ["python", "-u", "data_generator.py"]
