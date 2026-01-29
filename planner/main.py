@@ -91,7 +91,7 @@ def on_message(client, userdata, msg):
                 })
             )
             llm_service.send_to_llm(actions) 
-            print("[Analyzer] Prompt to LLM Sent")
+            print("[Planner] Prompt to LLM Sent")
         else:
             print("[Planner] No actions required")
             client.publish(
