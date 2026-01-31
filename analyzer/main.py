@@ -6,8 +6,10 @@ import llm_service
 import paho.mqtt.client as mqtt
 import csv
 import os
+from collections import defaultdict
 
 from influxdb_client import InfluxDBClient
+import ml_service  # <-- import complet du module
 
 # =======================
 # Config parsing
@@ -31,7 +33,7 @@ MEMORY_THRESHOLD = int(config["analyzer"]["memory_threshold"])
 SERVICE_TIME_THRESHOLD = int(config["analyzer"]["service_time_threshold"])
 INSTANCES_THRESHOLD = int(config["analyzer"]["instances_threshold"])
 
-RECORD_CSV = config["analyzer"].getboolean("record_csv", fallback=True)
+RECORD_CSV = config["analyzer"].getboolean("record_csv", fallback=False)
 
 MQTT_TOPIC = "AIops/analyzer"
 LOOP_INTERVAL = 20  # seconds
@@ -50,11 +52,17 @@ CSV_HEADERS = [
     "memory_anomaly",
     "service_time_anomaly",
     "instances_anomaly",
+    "cpu_delta1",
+    "memory_delta1",
+    "cpu_delta2",
+    "memory_delta2"
 ]
 
 # =======================
 # CSV Handling
 # =======================
+container_history = defaultdict(list)  # garde les dernières mesures pour chaque container
+
 def init_csv():
     if not RECORD_CSV:
         print("[Analyzer] CSV recording disabled")
@@ -70,7 +78,6 @@ def init_csv():
 
     print("[Analyzer] CSV recording enabled (fresh file)")
 
-
 def save_to_csv(timestamp, metrics, anomalies):
     if not RECORD_CSV:
         return
@@ -82,6 +89,20 @@ def save_to_csv(timestamp, metrics, anomalies):
             for container, values in containers.items():
 
                 container_anomalies = anomalies.get(cluster, {}).get(container, {})
+
+                # =======================
+                # Calcul des features temporelles
+                # =======================
+                history = container_history[(cluster, container)]
+                history.append(values)
+                if len(history) > 3:
+                    history.pop(0)
+
+                # calcul des deltas
+                cpu_delta1 = history[-1]["cpu"] - history[-2]["cpu"] if len(history) >= 2 else 0
+                memory_delta1 = history[-1]["memory"] - history[-2]["memory"] if len(history) >= 2 else 0
+                cpu_delta2 = history[-1]["cpu"] - history[-3]["cpu"] if len(history) >= 3 else 0
+                memory_delta2 = history[-1]["memory"] - history[-3]["memory"] if len(history) >= 3 else 0
 
                 writer.writerow([
                     timestamp,
@@ -96,6 +117,10 @@ def save_to_csv(timestamp, metrics, anomalies):
                     int("memory" in container_anomalies),
                     int("service_time" in container_anomalies),
                     int("instances" in container_anomalies),
+                    cpu_delta1,
+                    memory_delta1,
+                    cpu_delta2,
+                    memory_delta2
                 ])
 
 # =======================
@@ -154,15 +179,13 @@ def evaluate_metrics(metrics: dict) -> dict:
             service_time = values.get("service_time")
             if service_time is not None and service_time > SERVICE_TIME_THRESHOLD:
                 container_anomalies["service_time"] = {
-                    "value": service_time,
-                    "threshold": SERVICE_TIME_THRESHOLD,
+                    "value": service_time, "threshold": SERVICE_TIME_THRESHOLD
                 }
 
             instances = values.get("instances")
             if instances is not None and instances > INSTANCES_THRESHOLD:
                 container_anomalies["instances"] = {
-                    "value": instances,
-                    "threshold": INSTANCES_THRESHOLD,
+                    "value": instances, "threshold": INSTANCES_THRESHOLD
                 }
 
             if container_anomalies:
@@ -216,6 +239,14 @@ while True:
     except Exception as e:
         print(f"[Analyzer] Ollama not ready: {e}")
         time.sleep(5)
+
+# =======================
+# Load ML model
+# =======================
+print("[Analyzer] MLService loading model...")
+ml_service_instance = ml_service.MLService()
+ml_service_instance.load_model()
+print("[Analyzer] MLService model loaded ✅")
 
 # =======================
 # Start Analyzer

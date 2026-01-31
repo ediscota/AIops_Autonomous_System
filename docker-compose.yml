@@ -79,6 +79,8 @@ services:
       - aiops_network
     volumes:
       - ./config/config.ini:/app/config.ini:ro
+      - ./analyzer:/app   
+      
 
   # ---------------------------------------------------
   # 6. PLANNER
