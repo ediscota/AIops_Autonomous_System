@@ -4,10 +4,14 @@ import requests
 import configparser
 import llm_service
 import paho.mqtt.client as mqtt
+import csv
+import os
 
 from influxdb_client import InfluxDBClient
 
+# =======================
 # Config parsing
+# =======================
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -27,9 +31,76 @@ MEMORY_THRESHOLD = int(config["analyzer"]["memory_threshold"])
 SERVICE_TIME_THRESHOLD = int(config["analyzer"]["service_time_threshold"])
 INSTANCES_THRESHOLD = int(config["analyzer"]["instances_threshold"])
 
-MQTT_TOPIC = "AIops/analyzer"
-LOOP_INTERVAL = 20 # seconds
+RECORD_CSV = config["analyzer"].getboolean("record_csv", fallback=True)
 
+MQTT_TOPIC = "AIops/analyzer"
+LOOP_INTERVAL = 20  # seconds
+
+CSV_FILE = "analyzer_dataset.csv"
+CSV_HEADERS = [
+    "timestamp",
+    "cluster",
+    "container",
+    "cpu",
+    "memory",
+    "service_time",
+    "instances",
+    "anomaly_detected",
+    "cpu_anomaly",
+    "memory_anomaly",
+    "service_time_anomaly",
+    "instances_anomaly",
+]
+
+# =======================
+# CSV Handling
+# =======================
+def init_csv():
+    if not RECORD_CSV:
+        print("[Analyzer] CSV recording disabled")
+        return
+
+    if os.path.exists(CSV_FILE):
+        os.remove(CSV_FILE)
+        print("[Analyzer] Previous CSV deleted")
+
+    with open(CSV_FILE, mode="w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(CSV_HEADERS)
+
+    print("[Analyzer] CSV recording enabled (fresh file)")
+
+
+def save_to_csv(timestamp, metrics, anomalies):
+    if not RECORD_CSV:
+        return
+
+    with open(CSV_FILE, mode="a", newline="") as f:
+        writer = csv.writer(f)
+
+        for cluster, containers in metrics.items():
+            for container, values in containers.items():
+
+                container_anomalies = anomalies.get(cluster, {}).get(container, {})
+
+                writer.writerow([
+                    timestamp,
+                    cluster,
+                    container,
+                    values.get("cpu"),
+                    values.get("memory"),
+                    values.get("service_time"),
+                    values.get("instances"),
+                    int(bool(container_anomalies)),
+                    int("cpu" in container_anomalies),
+                    int("memory" in container_anomalies),
+                    int("service_time" in container_anomalies),
+                    int("instances" in container_anomalies),
+                ])
+
+# =======================
+# Metrics Collection
+# =======================
 def collect_metrics(query_api) -> dict:
     metrics = {}
 
@@ -61,6 +132,9 @@ def collect_metrics(query_api) -> dict:
 
     return metrics
 
+# =======================
+# Anomaly Evaluation
+# =======================
 def evaluate_metrics(metrics: dict) -> dict:
     anomalies = {}
 
@@ -71,17 +145,11 @@ def evaluate_metrics(metrics: dict) -> dict:
 
             cpu = values.get("cpu")
             if cpu is not None and cpu > CPU_THRESHOLD:
-                container_anomalies["cpu"] = {
-                    "value": cpu,
-                    "threshold": CPU_THRESHOLD,
-                }
+                container_anomalies["cpu"] = {"value": cpu, "threshold": CPU_THRESHOLD}
 
             memory = values.get("memory")
             if memory is not None and memory > MEMORY_THRESHOLD:
-                container_anomalies["memory"] = {
-                    "value": memory,
-                    "threshold": MEMORY_THRESHOLD,
-                }
+                container_anomalies["memory"] = {"value": memory, "threshold": MEMORY_THRESHOLD}
 
             service_time = values.get("service_time")
             if service_time is not None and service_time > SERVICE_TIME_THRESHOLD:
@@ -103,7 +171,9 @@ def evaluate_metrics(metrics: dict) -> dict:
 
     return anomalies
 
+# =======================
 # Waiting for MQTT
+# =======================
 while True:
     try:
         mqtt_client = mqtt.Client()
@@ -115,7 +185,9 @@ while True:
         print(f"[Analyzer] MQTT not ready: {e}")
         time.sleep(2)
 
+# =======================
 # Waiting for InfluxDB
+# =======================
 while True:
     try:
         influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
@@ -130,12 +202,10 @@ while True:
         print(f"[Analyzer] InfluxDB not ready: {e}")
         time.sleep(3)
 
+# =======================
 # Waiting for Ollama
-payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": "ping",
-        "stream": False
-    }
+# =======================
+payload = {"model": OLLAMA_MODEL, "prompt": "ping", "stream": False}
 
 while True:
     try:
@@ -147,9 +217,15 @@ while True:
         print(f"[Analyzer] Ollama not ready: {e}")
         time.sleep(5)
 
+# =======================
+# Start Analyzer
+# =======================
+init_csv()
 print("[Analyzer] Started")
 
+# =======================
 # Main loop
+# =======================
 while True:
     metrics = collect_metrics(query_api)
 
@@ -159,25 +235,28 @@ while True:
         continue
 
     anomalies = evaluate_metrics(metrics)
+    timestamp = time.time()
+
+    save_to_csv(timestamp, metrics, anomalies)
 
     if anomalies:
         print("[Analyzer] Anomalies detected")
         print(anomalies)
+
         mqtt_client.publish(
             MQTT_TOPIC,
-            json.dumps({
-                "timestamp": time.time(),
-                "anomalies": anomalies
-            })
+            json.dumps({"timestamp": timestamp, "anomalies": anomalies})
         )
-        llm_service.send_to_llm(anomalies) 
+
+        llm_service.send_to_llm(anomalies)
         print("[Analyzer] Prompt to LLM Sent")
+
     else:
         print("[Analyzer] No anomalies detected")
         mqtt_client.publish(
             llm_service.ANALYZER_LLM_TOPIC,
             json.dumps({
-                "timestamp": time.time(),
+                "timestamp": timestamp,
                 "response": "No anomalies detected in the monitored containers."
             })
         )
