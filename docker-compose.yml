@@ -127,6 +127,20 @@ services:
       - aiops_network
     restart: unless-stopped
 
+    # ---------------------------------------------------
+  # 8. GATEWAY API (Spring Boot)
+  # ---------------------------------------------------
+  aiops_api:
+    build: ./aiops_api
+    container_name: aiops_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      - influxdb
+    networks:
+      - aiops_network
+    restart: unless-stopped
+
 volumes:
   ollama_data:
 
