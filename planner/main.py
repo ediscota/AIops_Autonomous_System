@@ -94,13 +94,15 @@ def on_message(client, userdata, msg):
             print("[Planner] Prompt to LLM Sent")
         else:
             print("[Planner] No actions required")
-            client.publish(
-                llm_service.PLANNER_LLM_TOPIC,
-                json.dumps({
-                    "timestamp": time.time(),
-                    "response": "No actions required in the monitored containers."
-                })
-            )
+            # --- MODIFICA QUI: COMMENTA QUESTO BLOCCO ---
+            # Se pubblichi questo, sovrascrivi l'analisi precedente nel DB!
+            # client.publish(
+            #     llm_service.PLANNER_LLM_TOPIC,
+            #     json.dumps({
+            #         "timestamp": time.time(),
+            #         "response": "No actions required in the monitored containers."
+            #     })
+            # )
 
     except Exception as e:
         print(f"[Planner] Error processing message: {e}")
