@@ -11,7 +11,7 @@ config.read("config.ini")
 
 OLLAMA_URL = config["ollama"]["url"]
 OLLAMA_MODEL = config["ollama"]["model"]
-TIMEOUT = 120  # seconds
+TIMEOUT = 300 # 5 minuti
 
 MQTT_BROKER = config["mqtt"]["client_address"]
 MQTT_PORT = int(config["mqtt"]["port"])
@@ -19,39 +19,45 @@ MQTT_PORT = int(config["mqtt"]["port"])
 ANALYZER_LLM_TOPIC = "AIops/analyzer_llm_response"
 ANALYZER_PROMPT = """
 You are an AIOps expert monitoring a Kubernetes system.
-Your task is to summarize the current system health based strictly on the provided anomaly logs.
-
+Summarize the current system health based strictly on the provided anomaly logs.
 Rules:
-1. Identify which cluster and container is failing.
-2. Mention the specific issue (e.g., High CPU, Latency, Crash).
-3. Be concise. Use maximum 2 sentences.
+1. Identify failing cluster/container.
+2. Mention the specific issue.
+3. Be concise (max 2 sentences).
 
 Metrics:
 {metrics}
 """
 
-# MQTT setup
-while True:
-    try:
-        mqtt_client = mqtt.Client()
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.loop_start()
-        print("[Analyzer LLM Service] MQTT ready")
-        break
-    except Exception as e:
-        print(f"[Analyzer LLM Service] MQTT not ready: {e}")
-        time.sleep(2)
+# --- FIX: SEMAFORO GLOBALE ---
+llm_lock = threading.Lock()
 
+# MQTT setup
+mqtt_client = mqtt.Client()
+
+def start_mqtt():
+    while True:
+        try:
+            mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
+            mqtt_client.loop_start()
+            print("[Analyzer LLM Service] MQTT ready")
+            break
+        except Exception as e:
+            print(f"[Analyzer LLM Service] MQTT not ready: {e}")
+            time.sleep(2)
+
+start_mqtt()
 
 # ---- Private method (blocking) ----
 def _send_to_llm_blocking(data):
-    payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": ANALYZER_PROMPT.format(metrics=data),
-        "stream": False
-    }
-
     try:
+        print("[Analyzer LLM Service] Sending request to Ollama...")
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": ANALYZER_PROMPT.format(metrics=data),
+            "stream": False
+        }
+
         response = requests.post(
             OLLAMA_URL,
             json=payload,
@@ -70,14 +76,24 @@ def _send_to_llm_blocking(data):
         print("[Analyzer LLM Service] Response published")
 
     except requests.exceptions.ReadTimeout:
-        print("[Analyzer LLM Service] Ollama timeout")
-
+        print("[Analyzer LLM Service] Ollama TIMEOUT")
     except Exception as e:
-        print("[Analyzer LLM Service] Ollama error:", e)
+        print(f"[Analyzer LLM Service] Error: {e}")
+    finally:
+        if llm_lock.locked():
+            llm_lock.release()
+            print("[Analyzer LLM Service] Lock released.")
 
 
-# ---- Public method (async) ----
+# ---- Public method (Smart Async) ----
 def send_to_llm(data):
+    # STESSO FIX DEL PLANNER: SCARTA SE OCCUPATO
+    if llm_lock.locked():
+        print("[Analyzer LLM Service] SKIPPING: Ollama is busy.")
+        return
+
+    llm_lock.acquire()
+    
     thread = threading.Thread(
         target=_send_to_llm_blocking,
         args=(data,),
