@@ -6,10 +6,6 @@
     </header>
 
     <main>
-      <section class="ai-section">
-        <AiPlannerCard />
-      </section>
-
       <section class="metrics-section">
         <div v-if="loading" class="loading-message">
           📡 Connessione al cluster in corso...
@@ -23,20 +19,22 @@
           />
         </div>
       </section>
+
+      <section class="ai-section">
+        <AiPlannerCard />
+      </section>
     </main>
   </div>
 </template>
 
 <script>
 import axios from 'axios';
-// IMPORTAZIONE DIRETTA DEI COMPONENTI
 import MetricCard from './components/MetricCard.vue';
 import AiPlannerCard from './components/AIPlannerCard.vue';
 
 export default {
   name: 'App',
   components: {
-    // REGISTRAZIONE DEI COMPONENTI PER USARLI NEL TEMPLATE
     MetricCard,
     AiPlannerCard
   },
@@ -60,7 +58,7 @@ export default {
   },
   mounted() {
     this.fetchMetrics();
-    this.intervalId = setInterval(this.fetchMetrics, 2000); // Aggiorna ogni 2s
+    this.intervalId = setInterval(this.fetchMetrics, 2000);
   },
   beforeUnmount() {
     clearInterval(this.intervalId);
@@ -98,13 +96,14 @@ body {
   margin: 0;
 }
 
-.ai-section {
+/* Modifica CSS: Spazio SOTTO le metriche per separarle dall'AI */
+.metrics-section {
   margin-bottom: 3rem;
 }
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Griglia responsiva automatica */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
 }
 
@@ -113,5 +112,10 @@ body {
   font-size: 1.2rem;
   color: #64748b;
   padding: 2rem;
+}
+
+/* L'AI Section ora è in fondo, non serve margine sotto obbligatorio ma male non fa */
+.ai-section {
+  margin-bottom: 2rem;
 }
 </style>

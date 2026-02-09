@@ -133,6 +133,7 @@ while True:
                 "memory": round(container.memory_usage, 2),
                 "service_time": round(container.service_time, 2),
                 "instances": container.number_of_instances,
+                #"throughput": round(container.throughput, 2) TODO: add throughput to dashboard
             }
 
             for metric, value in metrics.items():
