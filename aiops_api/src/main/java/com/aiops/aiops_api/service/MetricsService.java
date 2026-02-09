@@ -46,7 +46,9 @@ public class MetricsService {
                 // Ora i dati saranno sicuramente sulla stessa riga
                 data.put("cpu", record.getValueByKey("cpu") != null ? record.getValueByKey("cpu") : 0.0);
                 data.put("memory", record.getValueByKey("memory") != null ? record.getValueByKey("memory") : 0.0);
-                data.put("latency", record.getValueByKey("latency") != null ? record.getValueByKey("latency") : 0.0);
+                data.put("service_time", record.getValueByKey("service_time") != null ? record.getValueByKey("service_time") : 0.0);
+                data.put("instances", record.getValueByKey("instances") != null ? record.getValueByKey("instances") : 0.0);
+                
                 
                 results.add(data);
             }
