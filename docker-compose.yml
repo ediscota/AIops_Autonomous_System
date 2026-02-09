@@ -141,6 +141,20 @@ services:
       - aiops_network
     restart: unless-stopped
 
+# ---------------------------------------------------
+  # 9. FRONTEND DASHBOARD (Vue.js)
+  # ---------------------------------------------------
+  dashboard:
+    build: ./dashboard
+    container_name: dashboard
+    ports:
+      - "3000:80"
+    depends_on:
+      - aiops_api
+    networks:
+      - aiops_network
+    restart: always
+
 volumes:
   ollama_data:
 
