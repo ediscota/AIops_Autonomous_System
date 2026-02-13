@@ -1,14 +1,11 @@
+import os
 import time
 import json
-import configparser
 import paho.mqtt.client as mqtt
 
 # Config parsing
-config = configparser.ConfigParser()
-config.read("config.ini")
-
-MQTT_BROKER = config["mqtt"]["client_address"]
-MQTT_PORT = int(config["mqtt"]["port"])
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 
 PLANNER_TOPIC = "AIops/planner"
 EXECUTE_TOPIC = "AIops/execute"

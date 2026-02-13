@@ -1,19 +1,16 @@
+import os
 import time
 import json
 import requests
-import configparser
 import llm_service
 import paho.mqtt.client as mqtt
 
 # Config parsing
-config = configparser.ConfigParser()
-config.read("config.ini")
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 
-MQTT_BROKER = config["mqtt"]["client_address"]
-MQTT_PORT = int(config["mqtt"]["port"])
-
-OLLAMA_URL = config["ollama"]["url"]
-OLLAMA_MODEL = config["ollama"]["model"]
+MODEL_NAME = os.environ.get("MODEL_NAME")
+MODEL_URL = os.environ.get("MODEL_URL")
 
 INPUT_TOPIC = "AIops/analyzer"
 OUTPUT_TOPIC = "AIops/planner"
@@ -124,14 +121,14 @@ while True:
 
 # Waiting for Ollama
 payload = {
-        "model": OLLAMA_MODEL,
+        "model": MODEL_NAME,
         "prompt": "ping",
         "stream": False
     }
 
 while True:
     try:
-        r = requests.post(OLLAMA_URL, json=payload, timeout=120)
+        r = requests.post(MODEL_URL, json=payload, timeout=120)
         r.raise_for_status()
         print("[Planner] Ollama ready")
         break

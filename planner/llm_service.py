@@ -1,20 +1,17 @@
+import os
 import time
 import json
 import requests
 import threading
-import configparser
 import paho.mqtt.client as mqtt
 
 # Config parsing
-config = configparser.ConfigParser()
-config.read("config.ini")
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 
-OLLAMA_URL = config["ollama"]["url"]
-OLLAMA_MODEL = config["ollama"]["model"]
-TIMEOUT = 120 # seconds
-
-MQTT_BROKER = config["mqtt"]["client_address"]
-MQTT_PORT = int(config["mqtt"]["port"])
+MODEL_NAME = os.environ.get("MODEL_NAME")
+MODEL_URL = os.environ.get("MODEL_URL")
+TIMEOUT = int(os.environ.get("MODEL_TIMEOUT", 120))
 
 PLANNER_LLM_TOPIC = "AIops/planner_llm_response"
 PLANNER_PROMPT = """
@@ -46,14 +43,14 @@ while True:
 # ---- Private method (blocking) ----
 def _send_to_llm_blocking(data):
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": MODEL_NAME,
         "prompt": PLANNER_PROMPT.format(plan=data),
         "stream": False
     }
 
     try:
         response = requests.post(
-            OLLAMA_URL,
+            MODEL_URL,
             json=payload,
             timeout=TIMEOUT
         )

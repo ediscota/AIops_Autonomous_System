@@ -4,7 +4,7 @@ services:
   # ---------------------------------------------------
   mosquitto:
     image: eclipse-mosquitto:2.0
-    container_name: mosquitto
+    container_name: aiops_mosquitto
     ports:
       - "1883:1883"     # MQTT port
       - "9001:9001"     # WebSockets port (useful for web dashboards later)
@@ -19,9 +19,9 @@ services:
   # ---------------------------------------------------
   managed_resources:
     build: ./managed_resources
-    container_name: managed_resources
-    environment:
-      - MQTT_BROKER=mosquitto  # Tells Python to connect to the service named 'mosquitto'
+    container_name: AIops_managed_resources
+    env_file:
+      - .env
     depends_on:
       - mosquitto
     networks:
@@ -39,12 +39,12 @@ services:
     ports:
       - "8086:8086"
     environment:
-      - DOCKER_INFLUXDB_INIT_MODE=setup
-      - DOCKER_INFLUXDB_INIT_USERNAME=admin
-      - DOCKER_INFLUXDB_INIT_PASSWORD=adminpassword
-      - DOCKER_INFLUXDB_INIT_ORG=AIops_org
-      - DOCKER_INFLUXDB_INIT_BUCKET=AIops_bucket
-      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=my-super-secret-admin-token
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
     volumes:
       - ./influxdb/data:/var/lib/influxdb2
     networks:
@@ -55,8 +55,10 @@ services:
   # ---------------------------------------------------
   telegraf:
     image: telegraf:latest
-    container_name: telegraf
+    container_name: AIops_telegraf
     restart: always
+    env_file:
+      - .env
     depends_on:
       - mosquitto
       - influxdb
@@ -70,7 +72,9 @@ services:
   # ---------------------------------------------------
   analyzer:
     build: ./analyzer
-    container_name: analyzer
+    container_name: AIops_analyzer
+    env_file:
+      - .env
     depends_on:
       - mosquitto
       - influxdb
@@ -85,7 +89,9 @@ services:
   # ---------------------------------------------------
   planner:
     build: ./planner
-    container_name: planner
+    container_name: AIops_planner
+    env_file:
+      - .env
     depends_on:
       - mosquitto
       - influxdb
@@ -100,7 +106,9 @@ services:
   # ---------------------------------------------------
   executor:
     build: ./executor
-    container_name: executor
+    container_name: AIops_executor
+    env_file:
+      - .env
     depends_on:
       - mosquitto
       - influxdb
@@ -111,14 +119,14 @@ services:
       - ./config/config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
-  # LLM EXPLAINER
+  # 8. LLM EXPLAINER
   # ---------------------------------------------------
   ollama_docker:
     build:
       context: ./ollama_docker
-    container_name: ollama_docker
-    environment:
-      - OLLAMA_MODEL=${MODEL_NAME:-llama3.1:8b} # Put the model name here
+    container_name: AIops_ollama_docker
+    env_file:
+      - .env
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -127,12 +135,14 @@ services:
       - aiops_network
     restart: unless-stopped
 
-    # ---------------------------------------------------
-  # 8. GATEWAY API (Spring Boot)
+  # ---------------------------------------------------
+  # 9. GATEWAY API (Spring Boot)
   # ---------------------------------------------------
   aiops_api:
     build: ./aiops_api
-    container_name: aiops_api
+    container_name: AIops_api
+    env_file:
+      - .env
     ports:
       - "8080:8080"
     depends_on:
@@ -141,12 +151,12 @@ services:
       - aiops_network
     restart: unless-stopped
 
-# ---------------------------------------------------
-  # 9. FRONTEND DASHBOARD (Vue.js)
+  # ---------------------------------------------------
+  # 10. FRONTEND DASHBOARD (Vue.js)
   # ---------------------------------------------------
   dashboard:
     build: ./dashboard
-    container_name: dashboard
+    container_name: AIops_dashboard
     ports:
       - "3000:80"
     depends_on:

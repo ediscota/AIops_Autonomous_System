@@ -1,3 +1,4 @@
+import os
 import time
 import json
 import configparser
@@ -10,13 +11,13 @@ from webapp import Cluster, Container
 config = configparser.ConfigParser()
 config.read("config.ini")
 
-MQTT_BROKER = config["mqtt"]["client_address"]
-MQTT_PORT = int(config["mqtt"]["port"])
+MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
+MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
 
 NUM_CONTAINERS = int(config["general"]["num_containers"])
 NUM_CLUSTERS = int(config["general"]["num_clusters"])
 
-PUBLISH_INTERVAL = 20 # seconds
+PUBLISH_INTERVAL = int(config["general"]["publish_interval"])
 EXECUTE_TOPIC = "AIops/execute"
 
 # Simulation state
