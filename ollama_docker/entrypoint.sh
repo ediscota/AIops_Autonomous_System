@@ -12,5 +12,5 @@ ollama pull $OLLAMA_MODEL
 
 echo "Model ready!"
 
-# Wait for the background process (the server) to not close the containeraa
+# Wait for the background process (the server) to not close the container
 wait

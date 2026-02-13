@@ -5,7 +5,7 @@ import configparser
 import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient
 
-# --- Config parsing ---
+# Config parsing
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -21,12 +21,11 @@ INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET")
 
 ANALYZER_INTERVAL = int(config["general"]["analyzer_interval"])
 
-# Dynamic Configuration Loading from config.ini
-
+# Dynamic Configuration Loading from the config.ini file
 METRIC_RULES = {} 
 
 try:
-    enabled_metrics_str = config["general"]["enabled_metrics"]
+    enabled_metrics_str = config["general"]["metrics"]
     enabled_metrics = [m.strip() for m in enabled_metrics_str.split(",")]
     
     for metric in enabled_metrics:
@@ -38,14 +37,15 @@ try:
                 print(f"[Config] Loaded rule for '{metric}': threshold > {threshold}")
             else:
                 print(f"[Config] Warning: No threshold defined for '{metric}'")
+
 except Exception as e:
     print(f"[Config] Error loading metric rules: {e}")
 
 
 def collect_metrics(query_api) -> dict:
     """
-    Queries InfluxDB to get latest values for all metrics.
-    returns  dictionary: {cluster: {container: {metric: value}}}
+    Queries InfluxDB to get the latest values for all metrics
+    returns a dictionary: {cluster: {container: {metric: value}}}
     """
     metrics = {}
 
@@ -88,7 +88,7 @@ def collect_metrics(query_api) -> dict:
 
 def evaluate_metrics(metrics: dict) -> dict:
     """
-    Compares the collected metrics with the dynamically loaded rules from config.ini.
+    Evaluates the collected metrics with the dynamically loaded rules from the config.ini file
     """
     anomalies = {}
 
@@ -114,8 +114,7 @@ def evaluate_metrics(metrics: dict) -> dict:
     return anomalies
 
 
-# --- Connection Setup ---
-
+# Connection Setup
 # 1. MQTT
 while True:
     try:
@@ -144,7 +143,7 @@ while True:
         time.sleep(3)
 
 
-# --- Main Loop ---
+# Main Loop
 print(f"[Analyzer] Started monitoring. Interval: {ANALYZER_INTERVAL}s")
 
 while True:

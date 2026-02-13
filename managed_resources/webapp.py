@@ -5,9 +5,9 @@ class Container:
         self.name = name
         self.cluster_id = cluster_id
         self.status = "RUNNING"
-        self.metric_configs = metric_configs # Salviamo la config per i limiti
+        self.metric_configs = metric_configs
         
-        # Inizializzazione dinamica delle metriche dal config
+        # Dynamic initialization for metrics from the config.ini file
         self.metrics = {} 
         for metric_name, config in metric_configs.items():
             self.metrics[metric_name] = float(config.get('initial', 0))
@@ -18,35 +18,34 @@ class Container:
                 self.metrics[key] = 0
             return
 
-        # Aggiornamento generico per tutte le metriche
+        # Tick update for all the metrics
         for name, value in self.metrics.items():
             cfg = self.metric_configs[name]
             noise = float(cfg.get('noise', 0))
             
-            # Caso speciale: Instances non varia a caso
+            # Special case: Istances doesn't randomly change
             if name == 'instances':
                 continue
                 
-            # Calcolo variazione random
+            # Random variation change
             change = random.uniform(-noise, noise)
             new_val = value + change
             
-            # Applicazione limiti min/max
+            # Applying min/max limits
             min_val = float(cfg.get('min', 0))
             max_val = float(cfg.get('max', 10000))
             self.metrics[name] = max(min_val, min(max_val, new_val))
 
-        # LOGICA RELAZIONALE (Questa è difficile da mettere in config puro)
-        # Esempio: Se CPU alta -> Service Time aumenta
-        # Possiamo parametrizzarla ma lasciarla nel codice per leggibilità
+        # Relational logic
+        # For example: If CPU utilization is high -> service time exponentially grows
         if self.metrics.get('cpu', 0) > 75:
-             # Sovrascriviamo la logica random base per il service_time in caso di stress
-             self.metrics['service_time'] = max(self.metrics['service_time'], 200)
+            # We override the normal "service_time" logic in the case of cpu stress
+            self.metrics['service_time'] = max(self.metrics['service_time'], 200)
 
     def restart(self):
         print(f"[{self.name}] Restarting...")
         self.status = "RUNNING"
-        # Reset ai valori iniziali da config
+        # Reset to the initial config.ini values
         for name, cfg in self.metric_configs.items():
             self.metrics[name] = float(cfg.get('initial', 0))
 
@@ -81,21 +80,21 @@ class Cluster:
         elif action == "kill":
             container.kill()
         elif action in ["scale_up", "scale_down"]:
-            # LOGICA GENERICA DI SCALING
+            # Generic scaling logic
             print(f"[Cluster {self.cluster_id}] Executing {action} on {target}")
             
             for name, val in container.metrics.items():
                 cfg = container.metric_configs[name]
                 
-                # Leggiamo dal config quanto deve cambiare questa metrica
-                # Esempio: cpu ha scale_up_delta = -10
-                key = f"{action}_delta" # diventa "scale_up_delta" o "scale_down_delta"
+                # We read from the config.ini file how much this metric needs to change
+                # Example: CPU has scale_up_delta = -10
+                key = f"{action}_delta" # it becomes "scale_up_delta" or "scale_down_delta"
                 delta = float(cfg.get(key, 0)) * multiplier
                 
-                # Applichiamo il delta
+                # Applying the delta
                 new_val = val + delta
                 
-                # Rispettiamo i limiti
+                # Following the limits
                 min_val = float(cfg.get('min', 0))
                 max_val = float(cfg.get('max', 10000))
                 container.metrics[name] = max(min_val, min(max_val, new_val))

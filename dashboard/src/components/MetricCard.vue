@@ -3,7 +3,7 @@
     <div class="card-header">
       <div class="header-top">
         <span class="container-name">{{ formattedName }}</span>
-        <span class="badge">{{ metricData.cluster }}</span>
+        <span class="badge">{{ formattedCluster }}</span>
       </div>
     </div>
 
@@ -33,15 +33,20 @@ export default {
     }
   },
   computed: {
-    // 1. Pulisce il nome del container
+    // 1. Cleans the container name
     formattedName() {
       const name = this.metricData.container || "Unknown";
-      return name.replace("container_", "").replace("-", " ").toUpperCase();
+      return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
     },
 
-    // 2. Filtra le chiavi che NON sono metriche da mostrare
+    formattedCluster() {
+      const name = this.metricData.cluster || "Unknown";
+      return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
+    },
+
+    // 2. Filters the keys which are NOT to show to the user
     displayMetrics() {
-      // Lista di chiavi da ignorare (metadati del sistema)
+      // List of keys to ignore (system's metadata)
       const ignoredKeys = ['cluster', 'container', 'host', 'topic', 'result', 'table', '_start', '_stop', '_time'];
       
       const metrics = {};
@@ -54,32 +59,32 @@ export default {
     }
   },
   methods: {
-    // Trasforma "service_time" in "Service Time"
+    // Transforms "service_time" in "Service Time"
     formatLabel(key) {
       return key
-        .replace(/_/g, " ") // Sostituisce underscore con spazi
-        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalizza prima lettera
+        .replace(/_/g, " ") // Replace underscore with spaces
+        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize the first letter
     },
 
-    // Aggiunge unità di misura basandosi sul nome della chiave (euristico)
+    // Add unit of measurements based on the name of the key (heuristic)
     formatValue(key, value) {
       if (typeof value !== 'number') return value;
 
       if (key.includes('cpu')) return value.toFixed(2) + ' %';
       if (key.includes('memory')) return value.toFixed(1) + ' MB';
       if (key.includes('time') || key.includes('latency')) return value.toFixed(2) + ' ms';
-      if (key.includes('instances')) return Math.round(value); // Intero
+      if (key.includes('instances')) return Math.round(value); // Integer
 
-      // Default per metriche sconosciute
+      // Default for unknown metrics
       return value.toFixed(2);
     },
 
-    // Logica colori dinamica (Semplificata perché il frontend non conosce le soglie del backend)
-    // Se volessimo le soglie vere, dovremmo passarle via API.
-    // Qui usiamo valori "di buon senso" o neutri per metriche sconosciute.
+    // Dynamic color logic (Simplified because the frontend doesn't know the backend thresholds)
+    // If we want to use real threshold we retrieve them via API
+    // Here we use "optimistic" or neutral values for unknown metrics
     getDynamicClass(key, value) {
-      // Esempi di soglie hardcoded lato frontend solo per visualizzazione (OPZIONALE)
-      // Se preferisci, puoi lasciare tutto 'normal' o colorare solo CPU/RAM.
+      // Some examples of hardcoded threshold only for visualization (OPTIONAL)
+      // If you prefer you can leave everything 'normal' or color only CPU/RAM
       
       if (key.includes('cpu')) {
         if (value > 80) return 'critical';
@@ -87,12 +92,12 @@ export default {
       }
       
       if (key.includes('memory')) {
-        if (value > 3000) return 'critical'; // Esempio generico
+        if (value > 3000) return 'critical'; // Generic example
         if (value > 2000) return 'warning';
       }
 
       if (key.includes('instances')) {
-        return 'instance-badge-text'; // Classe speciale per istanze
+        return 'instance-badge-text'; // Special class for the Instances
       }
 
       return 'normal';
@@ -162,12 +167,12 @@ export default {
   font-weight: 600;
 }
 
-/* Colori Stati */
-.normal { color: #334155; } /* Grigio scuro per default */
+/* State Colors */
+.normal { color: #334155; } /* Dark Grey is the default */
 .warning { color: #f59e0b; }
 .critical { color: #ef4444; font-weight: 800; }
 
-/* Stile speciale per le istanze */
+/* Special Style for the Instances */
 .instance-badge-text {
   background: #f1f5f9;
   color: #475569;

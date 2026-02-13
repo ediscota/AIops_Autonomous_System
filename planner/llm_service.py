@@ -40,7 +40,7 @@ while True:
         print(f"[Planner LLM Service] MQTT not ready: {e}")
         time.sleep(2)
 
-# ---- Private method (blocking) ----
+# Private method (blocking)
 def _send_to_llm_blocking(data):
     payload = {
         "model": MODEL_NAME,
@@ -73,7 +73,7 @@ def _send_to_llm_blocking(data):
         print("[Planner LLM Service] Ollama error:", e)
 
 
-# ---- Public method (async) ----
+# Public method (async)
 def send_to_llm(data):
     thread = threading.Thread(
         target=_send_to_llm_blocking,

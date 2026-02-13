@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from queue import Queue
 from webapp import Cluster, Container
 
-# --- Config parsing ---
+# Config parsing
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -20,13 +20,13 @@ NUM_CLUSTERS = int(config["general"]["num_clusters"])
 PUBLISH_INTERVAL = int(config["general"]["publish_interval"])
 EXECUTE_TOPIC = "AIops/execute"
 
-# Dynamic Metric Configuration Loading 
+# Dynamic Metrics Configuration Loading 
 try:
-    enabled_metrics_str = config["general"]["enabled_metrics"]
+    enabled_metrics_str = config["general"]["metrics"]
     ENABLED_METRICS = [m.strip() for m in enabled_metrics_str.split(",")]
 except KeyError:
-    print("[Warning] 'enabled_metrics' not found in [general]. Using defaults.")
-    ENABLED_METRICS = ["cpu", "memory"]
+    print("[Warning] 'metrics' not found in [general]. Using defaults.")
+    ENABLED_METRICS = ["cpu", "memory", "service_time"]
 
 METRIC_CONFIGS = {}
 
@@ -41,7 +41,7 @@ for metric in ENABLED_METRICS:
             'scale_up_delta': 0, 'scale_down_delta': 0
         }
 
-# --- Simulation state ---
+# Simulation state
 containers = []
 for i in range(NUM_CONTAINERS):
     section = f"container_{i}"
@@ -68,7 +68,7 @@ def on_execute_message(client, userdata, msg):
     except Exception as e:
         print(f"[Managed Resources] Error queuing command: {e}")
 
-# --- MQTT setup ---
+# MQTT setup
 while True:
     try:
         client = mqtt.Client()
@@ -84,7 +84,7 @@ while True:
 
 print("[Managed Resources] Started")
 
-# --- Main simulation loop ---
+# Main simulation loop
 while True:
 
     # 1. Execute pending commands
@@ -145,7 +145,7 @@ while True:
                 f"container_{container.name}/"
             )
 
-            # --- DYNAMIC PUBLISHING ---
+            # DYNAMIC PUBLISHING
             for metric_name, value in container.metrics.items():
                 payload = {
                     "timestamp": timestamp, 

@@ -1,7 +1,10 @@
 <template>
   <div class="app-container">
     <header class="dashboard-header">
-      <h1>🚀 AIOps Autonomous System</h1>
+      <h1>
+        <i class="bi bi-rocket-takeoff"></i>
+        AIOps Autonomous System
+      </h1>
       <p>Real-time monitoring & Self-healing AI</p>
     </header>
 

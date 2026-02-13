@@ -1,14 +1,17 @@
 <template>
   <div class="ai-card" :class="{ 'ai-active': hasPlan }">
     <div class="ai-header">
-      <h3>🤖 AI Autonomous Planner</h3>
+      <h3>
+        <i class="bi bi-robot"></i>
+        AI Autonomous Planner
+      </h3>
       <span v-if="loading" class="spinner">↻ Updating...</span>
       <span v-else class="last-update">Last update: {{ lastUpdate }}</span>
     </div>
 
     <div class="ai-body">
       <div v-if="loading && !response" class="skeleton-loader">
-        Analisi in corso...
+        Analysis in progress...
       </div>
       <div v-else class="response-text">
         {{ response }}
@@ -43,8 +46,8 @@ export default {
         this.response = res.data.response;
         this.lastUpdate = new Date().toLocaleTimeString();
       } catch (err) {
-        console.error("Errore AI Planner", err);
-        this.response = "Errore di connessione col Planner AI.";
+        console.error("AI Planner Error", err);
+        this.response = "Connection error with the AI Planner.";
       } finally {
         this.loading = false;
       }
@@ -52,7 +55,7 @@ export default {
   },
   mounted() {
     this.fetchPlan();
-    // Aggiorna ogni 10 secondi
+    // Refresh every 10 seconds
     this.intervalId = setInterval(this.fetchPlan, 10000);
   },
   beforeUnmount() {
@@ -65,7 +68,7 @@ export default {
 .ai-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-left: 5px solid #94a3b8; /* Default grigio */
+  border-left: 5px solid #94a3b8; /* Default is grey */
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -75,7 +78,7 @@ export default {
 .ai-active {
   background: #f0fdf4;
   border-color: #bbf7d0;
-  border-left-color: #22c55e; /* Verde acceso se c'è un piano */
+  border-left-color: #22c55e; /* Bright green if there's a plan */
 }
 
 .ai-header {
@@ -100,7 +103,7 @@ export default {
 
 .response-text {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  white-space: pre-wrap; /* Mantiene la formattazione a capo dell'AI */
+  white-space: pre-wrap; /* Keeps the layout */
   line-height: 1.6;
   color: #1e293b;
 }

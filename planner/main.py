@@ -43,7 +43,7 @@ def decide_action(metric, value, threshold):
                 return "scale_down", "warning"
 
         case _:
-            # unrecognized metric
+            # Unrecognized metric
             return None, None
 
     return None, None
@@ -137,5 +137,6 @@ while True:
 print("[Planner] Started")
 print("[Planner] Waiting for anomalies...")
 
+# Main loop
 while True:
     time.sleep(1)

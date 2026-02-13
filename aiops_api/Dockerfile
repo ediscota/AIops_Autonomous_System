@@ -7,15 +7,15 @@ COPY mvnw pom.xml ./
 RUN chmod +x mvnw
 RUN ./mvnw dependency:go-offline
 
-# --- PUNTO CRITICO ---
-# Copiamo i sorgenti
+# CRITICAL POINT
+# Copying the source files
 COPY src ./src
 
-# DEBUG: Stampa tutti i file .java trovati. 
-# Se nei log non vedi ApiController, Docker non lo sta copiando!
+# DEBUG: Prints al the .java files who have been found. 
+# If in the log you can't see ApiController, then in means Docker is not copying it!
 RUN find src -name "*.java"
 
-# Compila forzando "clean" per rimuovere vecchi target
+# Compile using "clean" to remove the old target folder
 RUN ./mvnw clean package -DskipTests
 
 # Stage 2: Run

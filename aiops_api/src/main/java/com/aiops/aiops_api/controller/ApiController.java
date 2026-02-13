@@ -9,7 +9,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*") // Importante per il frontend Vue.js
+@CrossOrigin(origins = "*") // Important for the Vue.js frontend
 public class ApiController {
 
     @Autowired
