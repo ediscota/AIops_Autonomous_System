@@ -1,42 +1,60 @@
 import random
 
 class Container:
-    def __init__(self, name, cluster_id):
+    def __init__(self, name, cluster_id, metric_configs):
         self.name = name
         self.cluster_id = cluster_id
-        self.status = "RUNNING"  # RUNNING, CRASHED, STOPPED
-        self.cpu_usage = 0.0
-        self.memory_usage = 128 # megabytes of RAM used
-        self.service_time = 50 # milliseconds it takes to complete one job
-        self.throughput = 5 # jobs completed per unit of time
-        self.number_of_instances = 1
+        self.status = "RUNNING"
+        self.metric_configs = metric_configs # Salviamo la config per i limiti
+        
+        # Inizializzazione dinamica delle metriche dal config
+        self.metrics = {} 
+        for metric_name, config in metric_configs.items():
+            self.metrics[metric_name] = float(config.get('initial', 0))
 
     def tick(self):
         if self.status == "CRASHED":
-            self.cpu_usage = 0
-            self.service_time = 0
-            self.service_time = 0
-            self.throughput = 0
-            self.number_of_instances = 0
+            for key in self.metrics:
+                self.metrics[key] = 0
             return
 
-        self.cpu_usage = max(0, min(100, self.cpu_usage + random.uniform(-10, 10)))
-        self.memory_usage = max(64, self.memory_usage + random.uniform(-32, 32))
+        # Aggiornamento generico per tutte le metriche
+        for name, value in self.metrics.items():
+            cfg = self.metric_configs[name]
+            noise = float(cfg.get('noise', 0))
+            
+            # Caso speciale: Instances non varia a caso
+            if name == 'instances':
+                continue
+                
+            # Calcolo variazione random
+            change = random.uniform(-noise, noise)
+            new_val = value + change
+            
+            # Applicazione limiti min/max
+            min_val = float(cfg.get('min', 0))
+            max_val = float(cfg.get('max', 10000))
+            self.metrics[name] = max(min_val, min(max_val, new_val))
 
-        base_service_time = 50 if self.cpu_usage < 75 else 200
-        self.service_time = max(10, base_service_time + random.uniform(-20, 20))
+        # LOGICA RELAZIONALE (Questa è difficile da mettere in config puro)
+        # Esempio: Se CPU alta -> Service Time aumenta
+        # Possiamo parametrizzarla ma lasciarla nel codice per leggibilità
+        if self.metrics.get('cpu', 0) > 75:
+             # Sovrascriviamo la logica random base per il service_time in caso di stress
+             self.metrics['service_time'] = max(self.metrics['service_time'], 200)
 
     def restart(self):
         print(f"[{self.name}] Restarting...")
         self.status = "RUNNING"
-        self.cpu_usage = 0.0
-        self.memory_usage = 128
-        self.service_time = 50
-        self.throughput = 5
+        # Reset ai valori iniziali da config
+        for name, cfg in self.metric_configs.items():
+            self.metrics[name] = float(cfg.get('initial', 0))
 
     def kill(self):
         print(f"[{self.name}] Killed!")
         self.status = "CRASHED"
+        for key in self.metrics:
+            self.metrics[key] = 0
 
 
 class Cluster:
@@ -51,49 +69,38 @@ class Cluster:
     def execute_action(self, action_payload):
         action = action_payload.get("action")
         target = action_payload.get("container")
-        severity = action_payload.get("severity", "warning")  # default is "warning"
-
+        severity = action_payload.get("severity", "warning")
+        
         container = next((c for c in self.containers if c.name == target), None)
+        if not container: return False
 
-        if not container:
-            print(f"[Cluster {self.cluster_id}] Container {target} not found")
-            return False
-
-        # Multiplier based on the severity of the action
         multiplier = 2 if severity == "critical" else 1
 
         if action == "restart":
-            print(f"[Cluster {self.cluster_id}] Restarting {target}")
-            container.restart()  # resets all fields of the container
-
+            container.restart()
         elif action == "kill":
-            print(f"[Cluster {self.cluster_id}] Killing {target}")
-            container.kill()  # every field set to 0
-
-        elif action == "scale_up":
-            increment = multiplier
-            container.number_of_instances += increment
+            container.kill()
+        elif action in ["scale_up", "scale_down"]:
+            # LOGICA GENERICA DI SCALING
+            print(f"[Cluster {self.cluster_id}] Executing {action} on {target}")
             
-            container.cpu_usage = max(0, container.cpu_usage - 10 * increment)
-            container.memory_usage += 64 * increment
-            container.service_time = max(10, container.service_time - 5 * increment)
-            container.throughput += 2 * increment
-            print(f"[Cluster {self.cluster_id}] Scaling up {target} by {increment} instances "
-                f"(now {container.number_of_instances})")
-
-        elif action == "scale_down":
-            decrement = multiplier
-            container.number_of_instances = max(1, container.number_of_instances - decrement)
-            
-            container.cpu_usage += 10 * decrement
-            container.memory_usage = max(64, container.memory_usage - 32 * decrement)
-            container.service_time += 5 * decrement
-            container.throughput = max(1, container.throughput - 1 * decrement)
-            print(f"[Cluster {self.cluster_id}] Scaling down {target} by {decrement} instances "
-                f"(now {container.number_of_instances})")
-
+            for name, val in container.metrics.items():
+                cfg = container.metric_configs[name]
+                
+                # Leggiamo dal config quanto deve cambiare questa metrica
+                # Esempio: cpu ha scale_up_delta = -10
+                key = f"{action}_delta" # diventa "scale_up_delta" o "scale_down_delta"
+                delta = float(cfg.get(key, 0)) * multiplier
+                
+                # Applichiamo il delta
+                new_val = val + delta
+                
+                # Rispettiamo i limiti
+                min_val = float(cfg.get('min', 0))
+                max_val = float(cfg.get('max', 10000))
+                container.metrics[name] = max(min_val, min(max_val, new_val))
+                
         else:
-            print(f"[Cluster {self.cluster_id}] Unknown action {action}")
             return False
-
+        
         return True

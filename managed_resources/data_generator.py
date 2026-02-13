@@ -7,7 +7,7 @@ import paho.mqtt.client as mqtt
 from queue import Queue
 from webapp import Cluster, Container
 
-# Config parsing
+# --- Config parsing ---
 config = configparser.ConfigParser()
 config.read("config.ini")
 
@@ -20,13 +20,34 @@ NUM_CLUSTERS = int(config["general"]["num_clusters"])
 PUBLISH_INTERVAL = int(config["general"]["publish_interval"])
 EXECUTE_TOPIC = "AIops/execute"
 
-# Simulation state
+# Dynamic Metric Configuration Loading 
+try:
+    enabled_metrics_str = config["general"]["enabled_metrics"]
+    ENABLED_METRICS = [m.strip() for m in enabled_metrics_str.split(",")]
+except KeyError:
+    print("[Warning] 'enabled_metrics' not found in [general]. Using defaults.")
+    ENABLED_METRICS = ["cpu", "memory"]
+
+METRIC_CONFIGS = {}
+
+for metric in ENABLED_METRICS:
+    section_name = f"metric_{metric}"
+    if config.has_section(section_name):
+        METRIC_CONFIGS[metric] = dict(config[section_name])
+    else:
+        print(f"[Warning] Configuration section [{section_name}] not found. Using defaults.")
+        METRIC_CONFIGS[metric] = {
+            'initial': 0, 'min': 0, 'max': 100, 'noise': 0, 
+            'scale_up_delta': 0, 'scale_down_delta': 0
+        }
+
+# --- Simulation state ---
 containers = []
 for i in range(NUM_CONTAINERS):
     section = f"container_{i}"
     name = config[section]["name"]
     cluster_id = int(config[section]["cluster"])
-    containers.append(Container(name, cluster_id))
+    containers.append(Container(name, cluster_id, METRIC_CONFIGS))
 
 clusters = {
     cid: Cluster(
@@ -47,7 +68,7 @@ def on_execute_message(client, userdata, msg):
     except Exception as e:
         print(f"[Managed Resources] Error queuing command: {e}")
 
-# MQTT setup
+# --- MQTT setup ---
 while True:
     try:
         client = mqtt.Client()
@@ -63,15 +84,15 @@ while True:
 
 print("[Managed Resources] Started")
 
-# Main simulation loop
+# --- Main simulation loop ---
 while True:
 
     # 1. Execute pending commands
     while not execute_queue.empty():
         command = execute_queue.get()
 
-        cluster_id = command["cluster"]
-        container_name = command["container"]
+        cluster_id = command.get("cluster")
+        container_name = command.get("container")
 
         cluster = clusters.get(cluster_id)
         if not cluster:
@@ -79,9 +100,9 @@ while True:
             continue
 
         action_payload = {
-            "action": command["action"],
+            "action": command.get("action"),
             "container": container_name,
-            "metric": command.get("metric"),
+            "metric": command.get("metric"), 
             "severity": command.get("severity", "warning")
         }
 
@@ -89,34 +110,29 @@ while True:
 
         if executed:
             print(f"[Managed Resources] Executed command: {action_payload}")
-
-            # Publish UPDATED metrics immediately
             container = next(
                 (c for c in cluster.containers if c.name == container_name),
                 None
             )
 
             if container:
+                timestamp = time.time()
                 topic_base = (
                     f"AIops/metrics/cluster_{cluster.cluster_id}/"
                     f"container_{container.name}/"
                 )
 
-                metrics = {
-                    "cpu": round(container.cpu_usage, 2),
-                    "memory": round(container.memory_usage, 2),
-                    "service_time": round(container.service_time, 2),
-                    "instances": container.number_of_instances,
-                }
-
-                timestamp = time.time()
-                for metric, value in metrics.items():
-                    payload = {"timestamp": timestamp, "value": value}
-                    client.publish(topic_base + metric, json.dumps(payload))
+                # Dynamic publishing
+                for metric_name, value in container.metrics.items():
+                    payload = {
+                        "timestamp": timestamp, 
+                        "value": round(float(value), 2)
+                    }
+                    client.publish(topic_base + metric_name, json.dumps(payload))
         else:
             print(f"[Managed Resources] Action failed: {action_payload}")
 
-    # 2. Update simulation state
+    # 2. Update simulation state (Tick)
     for cluster in clusters.values():
         cluster.update_state()
 
@@ -129,16 +145,12 @@ while True:
                 f"container_{container.name}/"
             )
 
-            metrics = {
-                "cpu": round(container.cpu_usage, 2),
-                "memory": round(container.memory_usage, 2),
-                "service_time": round(container.service_time, 2),
-                "instances": container.number_of_instances,
-                #"throughput": round(container.throughput, 2) TODO: add throughput to dashboard
-            }
-
-            for metric, value in metrics.items():
-                payload = {"timestamp": timestamp, "value": value}
-                client.publish(topic_base + metric, json.dumps(payload))
+            # --- DYNAMIC PUBLISHING ---
+            for metric_name, value in container.metrics.items():
+                payload = {
+                    "timestamp": timestamp, 
+                    "value": round(float(value), 2)
+                }
+                client.publish(topic_base + metric_name, json.dumps(payload))
 
     time.sleep(PUBLISH_INTERVAL)

@@ -18,7 +18,7 @@ public class MetricsService {
     @Value("${influx.bucket}")
     private String bucket;
 
-    // QUERY 1: Metriche Real-time (FIXED FINAL)
+    // QUERY 1: Metriche Real-time (DYNAMIC & DATA-DRIVEN)
     public List<Map<String, Object>> getLiveMetrics() {
         String query = String.format("""
             from(bucket: "%s")
@@ -26,10 +26,9 @@ public class MetricsService {
               |> filter(fn: (r) => r["_measurement"] == "mqtt_consumer")
               |> filter(fn: (r) => r["_field"] == "value")
               |> last()
-              // *** FIX: Manteniamo SOLO queste colonne. ***
-              // Questo elimina automaticamente 'topic', 'host', '_time' e qualsiasi altra 
-              // colonna che impediva l'unione dei dati.
+              // Manteniamo solo le colonne essenziali
               |> keep(columns: ["cluster", "container", "metric", "_value"])
+              // Pivot: trasforma i valori della colonna "metric" in nuove colonne (es. cpu, memory, gpu)
               |> pivot(rowKey:["cluster", "container"], columnKey: ["metric"], valueColumn: "_value")
             """, bucket);
 
@@ -39,16 +38,29 @@ public class MetricsService {
         for (FluxTable table : tables) {
             for (FluxRecord record : table.getRecords()) {
                 Map<String, Object> data = new HashMap<>();
-                
-                data.put("cluster", record.getValueByKey("cluster"));
-                data.put("container", record.getValueByKey("container"));
-                
-                // Ora i dati saranno sicuramente sulla stessa riga
-                data.put("cpu", record.getValueByKey("cpu") != null ? record.getValueByKey("cpu") : 0.0);
-                data.put("memory", record.getValueByKey("memory") != null ? record.getValueByKey("memory") : 0.0);
-                data.put("service_time", record.getValueByKey("service_time") != null ? record.getValueByKey("service_time") : 0.0);
-                data.put("instances", record.getValueByKey("instances") != null ? record.getValueByKey("instances") : 0.0);
-                
+
+                // --- LOGICA DINAMICA ---
+                // Iteriamo su TUTTE le colonne restituite dalla query.
+                // Non ci importa se si chiamano "cpu", "gpu", "disk_usage" o "pippo".
+                Map<String, Object> values = record.getValues();
+
+                for (Map.Entry<String, Object> entry : values.entrySet()) {
+                    String key = entry.getKey();
+                    Object val = entry.getValue();
+
+                    // Filtriamo le colonne interne di InfluxDB che non servono al frontend
+                    // _start, _stop, _time, result, table sono metadati della query Flux
+                    if (!key.startsWith("_") && !key.equals("result") && !key.equals("table")) {
+                        
+                        // Gestione null safe: se un valore è null, mettiamo 0.0 (opzionale)
+                        // Ma per renderlo generico, passiamo il valore o 0 se è nullo
+                        if (val == null && !key.equals("cluster") && !key.equals("container")) {
+                             data.put(key, 0.0);
+                        } else {
+                             data.put(key, val);
+                        }
+                    }
+                }
                 
                 results.add(data);
             }

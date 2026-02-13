@@ -8,31 +8,15 @@
     </div>
 
     <div class="card-body">
-      <div class="metric-row">
-        <span class="label">CPU Usage</span>
-        <span class="value" :class="getThresholdClass(metricData.cpu, 10)">
-          {{ metricData.cpu.toFixed(2) }} %
-        </span>
-      </div>
-
-      <div class="metric-row">
-        <span class="label">Memory</span>
-        <span class="value" :class="getThresholdClass(metricData.memory, 150)">
-          {{ metricData.memory.toFixed(1) }} MB
-        </span>
-      </div>
-
-      <div class="metric-row">
-        <span class="label">Service Time</span>
-        <span class="value" :class="getThresholdClass(metricData.service_time, 60)">
-          {{ metricData.service_time.toFixed(2) }} ms
-        </span>
-      </div>
-
-      <div class="metric-row">
-        <span class="label">Instances</span>
-        <span class="value instance-badge">
-          {{ metricData.instances }}
+      <div 
+        v-for="(value, key) in displayMetrics" 
+        :key="key" 
+        class="metric-row"
+      >
+        <span class="label">{{ formatLabel(key) }}</span>
+        
+        <span class="value" :class="getDynamicClass(key, value)">
+          {{ formatValue(key, value) }}
         </span>
       </div>
     </div>
@@ -49,18 +33,69 @@ export default {
     }
   },
   computed: {
-    // Pulisce il nome: "container_auth-service" -> "Auth Service"
+    // 1. Pulisce il nome del container
     formattedName() {
       const name = this.metricData.container || "Unknown";
       return name.replace("container_", "").replace("-", " ").toUpperCase();
+    },
+
+    // 2. Filtra le chiavi che NON sono metriche da mostrare
+    displayMetrics() {
+      // Lista di chiavi da ignorare (metadati del sistema)
+      const ignoredKeys = ['cluster', 'container', 'host', 'topic', 'result', 'table', '_start', '_stop', '_time'];
+      
+      const metrics = {};
+      for (const [key, value] of Object.entries(this.metricData)) {
+        if (!ignoredKeys.includes(key)) {
+          metrics[key] = value;
+        }
+      }
+      return metrics;
     }
   },
   methods: {
-    // Ritorna una classe CSS se il valore supera la soglia
-    getThresholdClass(value, threshold) {
-      if (value > threshold) return "critical";
-      if (value > threshold * 0.8) return "warning";
-      return "normal";
+    // Trasforma "service_time" in "Service Time"
+    formatLabel(key) {
+      return key
+        .replace(/_/g, " ") // Sostituisce underscore con spazi
+        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalizza prima lettera
+    },
+
+    // Aggiunge unità di misura basandosi sul nome della chiave (euristico)
+    formatValue(key, value) {
+      if (typeof value !== 'number') return value;
+
+      if (key.includes('cpu')) return value.toFixed(2) + ' %';
+      if (key.includes('memory')) return value.toFixed(1) + ' MB';
+      if (key.includes('time') || key.includes('latency')) return value.toFixed(2) + ' ms';
+      if (key.includes('instances')) return Math.round(value); // Intero
+
+      // Default per metriche sconosciute
+      return value.toFixed(2);
+    },
+
+    // Logica colori dinamica (Semplificata perché il frontend non conosce le soglie del backend)
+    // Se volessimo le soglie vere, dovremmo passarle via API.
+    // Qui usiamo valori "di buon senso" o neutri per metriche sconosciute.
+    getDynamicClass(key, value) {
+      // Esempi di soglie hardcoded lato frontend solo per visualizzazione (OPZIONALE)
+      // Se preferisci, puoi lasciare tutto 'normal' o colorare solo CPU/RAM.
+      
+      if (key.includes('cpu')) {
+        if (value > 80) return 'critical';
+        if (value > 50) return 'warning';
+      }
+      
+      if (key.includes('memory')) {
+        if (value > 3000) return 'critical'; // Esempio generico
+        if (value > 2000) return 'warning';
+      }
+
+      if (key.includes('instances')) {
+        return 'instance-badge-text'; // Classe speciale per istanze
+      }
+
+      return 'normal';
     }
   }
 };
@@ -127,15 +162,17 @@ export default {
   font-weight: 600;
 }
 
-/* Classi per lo stato */
-.normal { color: #10b981; }
+/* Colori Stati */
+.normal { color: #334155; } /* Grigio scuro per default */
 .warning { color: #f59e0b; }
 .critical { color: #ef4444; font-weight: 800; }
 
-.instance-badge {
-  background: #f3f4f6;
-  padding: 2px 8px;
+/* Stile speciale per le istanze */
+.instance-badge-text {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
   border-radius: 4px;
-  color: #374151;
+  font-size: 0.9em;
 }
 </style>
