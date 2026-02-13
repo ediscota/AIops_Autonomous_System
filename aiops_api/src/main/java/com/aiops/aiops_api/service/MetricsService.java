@@ -57,7 +57,7 @@ public class MetricsService {
     }
 
     // QUERY 2: Analisi LLM - Analyzer
-    public String getLatestLlmAnalysis() {
+    /* public String getLatestLlmAnalysis() {
         String query = String.format("""
             from(bucket: "%s")
               |> range(start: -24h)
@@ -72,7 +72,7 @@ public class MetricsService {
             return val != null ? val.toString() : "Nessun dato.";
         }
         return "Waiting for LLM analysis...";
-    }
+    } */
 
     // QUERY 2: Analisi LLM - PLANNER
     public String getLatestLlmPlanner() {

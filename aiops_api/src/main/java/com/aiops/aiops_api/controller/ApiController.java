@@ -20,11 +20,6 @@ public class ApiController {
         return metricsService.getLiveMetrics();
     }
 
-    @GetMapping("/analysis")
-    public Map<String, String> getAnalysis() {
-        return Map.of("response", metricsService.getLatestLlmAnalysis());
-    }
-
     @GetMapping("/planning")
     public Map<String, String> getPlanning() {
         return Map.of("response", metricsService.getLatestLlmPlanner());

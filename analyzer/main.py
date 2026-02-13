@@ -1,11 +1,8 @@
 import os
 import time
 import json
-import requests
 import configparser
-import llm_service
 import paho.mqtt.client as mqtt
-
 from influxdb_client import InfluxDBClient
 
 # Config parsing
@@ -19,9 +16,6 @@ INFLUX_URL = os.environ.get("INFLUXDB_URL")
 INFLUX_TOKEN = os.environ.get("INFLUXDB_TOKEN")
 INFLUX_ORG = os.environ.get("INFLUXDB_ORG")
 INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET")
-
-MODEL_NAME = os.environ.get("MODEL_NAME")
-MODEL_URL = os.environ.get("MODEL_URL")
 
 CPU_THRESHOLD = float(config["analyzer"]["cpu_threshold"])
 MEMORY_THRESHOLD = int(config["analyzer"]["memory_threshold"])
@@ -131,23 +125,6 @@ while True:
         print(f"[Analyzer] InfluxDB not ready: {e}")
         time.sleep(3)
 
-# Waiting for Ollama
-payload = {
-        "model": MODEL_NAME,
-        "prompt": "ping",
-        "stream": False
-    }
-
-while True:
-    try:
-        r = requests.post(MODEL_URL, json=payload, timeout=120)
-        r.raise_for_status()
-        print("[Analyzer] Ollama ready")
-        break
-    except Exception as e:
-        print(f"[Analyzer] Ollama not ready: {e}")
-        time.sleep(5)
-
 print("[Analyzer] Started")
 
 # Main loop
@@ -171,16 +148,7 @@ while True:
                 "anomalies": anomalies
             })
         )
-        llm_service.send_to_llm(anomalies) 
-        print("[Analyzer] Prompt to LLM Sent")
     else:
         print("[Analyzer] No anomalies detected")
-        mqtt_client.publish(
-            llm_service.ANALYZER_LLM_TOPIC,
-            json.dumps({
-                "timestamp": time.time(),
-                "response": "No anomalies detected in the monitored containers."
-            })
-        )
 
     time.sleep(ANALYZER_INTERVAL)
