@@ -14,6 +14,8 @@ config.read("config.ini")
 
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+MQTT_USER = os.getenv("MQTT_GENERATOR_USER")
+MQTT_PASSWORD = os.getenv("MQTT_GENERATOR_PASSWORD")
 
 NUM_CONTAINERS = int(config["general"]["num_containers"])
 NUM_CLUSTERS = int(config["general"]["num_clusters"])
@@ -89,6 +91,7 @@ def on_execute_message(client, userdata, msg):
 while True:
     try:
         client = mqtt.Client()
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.subscribe(EXECUTE_TOPIC)
         client.message_callback_add(EXECUTE_TOPIC, on_execute_message)

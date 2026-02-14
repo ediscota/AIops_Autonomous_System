@@ -13,11 +13,14 @@ config.read("config.ini")
 # Environment Variables
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
-MODEL_NAME = os.environ.get("MODEL_NAME")
-MODEL_URL = os.environ.get("MODEL_URL")
+MQTT_USER = os.getenv("MQTT_PLANNER_USER")
+MQTT_PASSWORD = os.getenv("MQTT_PLANNER_PASSWORD")
 
 INPUT_TOPIC = "AIops/analyzer"
 OUTPUT_TOPIC = "AIops/planner"
+
+MODEL_NAME = os.environ.get("MODEL_NAME")
+MODEL_URL = os.environ.get("MODEL_URL")
 
 # We load only the available metrics
 try:
@@ -96,6 +99,7 @@ def on_message(client, userdata, msg):
 while True:
     try:
         client = mqtt.Client()
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.subscribe(INPUT_TOPIC)
         client.on_message = on_message

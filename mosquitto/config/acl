@@ -1,0 +1,26 @@
+user generator
+topic read AIops/execute
+topic read AIops/metrics/+/+/+
+topic write AIops/metrics/+/+/+
+
+user analyzer
+topic read AIops/analyzer
+topic write AIops/analyzer
+
+user planner
+topic read AIops/analyzer
+topic read AIops/planner
+topic write AIops/planner
+
+user llm
+topic read AIops/planner_llm_response
+topic write AIops/planner_llm_response
+
+user executor
+topic read AIops/planner
+topic read AIops/execute
+topic write AIops/execute
+
+user telegraf
+topic read AIops/metrics/+/+/+
+topic read AIops/planner_llm_response

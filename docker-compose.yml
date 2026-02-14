@@ -9,8 +9,9 @@ services:
       - "1883:1883"     # MQTT port
       - "9001:9001"     # WebSockets port (useful for web dashboards later)
     volumes:
-      # Map a local config file to the container (optional but recommended for stability)
-      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/config:/mosquitto/config:ro
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
     networks:
       - aiops_network
 

@@ -6,6 +6,8 @@ import paho.mqtt.client as mqtt
 # Config parsing
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+MQTT_USER = os.getenv("MQTT_EXECUTOR_USER")
+MQTT_PASSWORD = os.getenv("MQTT_EXECUTOR_PASSWORD")
 
 PLANNER_TOPIC = "AIops/planner"
 EXECUTE_TOPIC = "AIops/execute"
@@ -57,6 +59,7 @@ if __name__ == "__main__":
     while True:
         try:
             client = mqtt.Client()
+            client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
             client.connect(MQTT_BROKER, MQTT_PORT, 60)
             client.subscribe(PLANNER_TOPIC)
             client.on_message = on_message

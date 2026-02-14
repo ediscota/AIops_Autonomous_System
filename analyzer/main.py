@@ -12,6 +12,9 @@ config.read("config.ini")
 # Environment Variables
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+MQTT_USER = os.getenv("MQTT_ANALYZER_USER")
+MQTT_PASSWORD = os.getenv("MQTT_ANALYZER_PASSWORD")
+
 MQTT_TOPIC = "AIops/analyzer"
 
 INFLUX_URL = os.environ.get("INFLUXDB_URL")
@@ -101,9 +104,10 @@ def evaluate_metrics(metrics: dict) -> dict:
 # Connection Setup
 while True:
     try:
-        mqtt_client = mqtt.Client()
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.loop_start()
+        client = mqtt.Client()
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_start()
         print("[Analyzer] MQTT ready")
         break
     except Exception as e:
@@ -128,7 +132,7 @@ while True:
     if current_metrics:
         analysis_report = evaluate_metrics(current_metrics)
         
-        mqtt_client.publish(
+        client.publish(
             MQTT_TOPIC,
             json.dumps({
                 "timestamp": time.time(),

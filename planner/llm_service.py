@@ -8,6 +8,8 @@ import paho.mqtt.client as mqtt
 # Config parsing
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
+MQTT_USER = os.getenv("MQTT_LLM_USER")
+MQTT_PASSWORD = os.getenv("MQTT_LLM_PASSWORD")
 
 MODEL_NAME = os.environ.get("MODEL_NAME")
 MODEL_URL = os.environ.get("MODEL_URL")
@@ -31,9 +33,10 @@ Planner Decision:
 # MQTT setup
 while True:
     try:
-        mqtt_client = mqtt.Client()
-        mqtt_client.connect(MQTT_BROKER, MQTT_PORT, 60)
-        mqtt_client.loop_start()
+        client = mqtt.Client()
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
+        client.connect(MQTT_BROKER, MQTT_PORT, 60)
+        client.loop_start()
         print("[Planner LLM Service] MQTT ready")
         break
     except Exception as e:
@@ -56,7 +59,7 @@ def _send_to_llm_blocking(data):
         )
         response.raise_for_status()
 
-        mqtt_client.publish(
+        client.publish(
             PLANNER_LLM_TOPIC,
             json.dumps({
                 "timestamp": time.time(),
