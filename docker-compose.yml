@@ -149,6 +149,8 @@ services:
       - influxdb
     networks:
       - aiops_network
+    volumes:
+      - ./config/config.ini:/app/config.ini:ro
     restart: unless-stopped
 
   # ---------------------------------------------------
