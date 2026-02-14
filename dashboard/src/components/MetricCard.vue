@@ -27,10 +27,8 @@
 export default {
   name: "MetricCard",
   props: {
-    metricData: {
-      type: Object,
-      required: true
-    }
+    metricData: { type: Object, required: true },
+    thresholds: { type: Object, required: true }
   },
   computed: {
     // 1. Cleans the container name
@@ -63,7 +61,8 @@ export default {
     formatLabel(key) {
       return key
         .replace(/_/g, " ") // Replace underscore with spaces
-        .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize the first letter
+        .replace(/\b\w/g, l => l.toUpperCase()) // Capitalize the first letter
+        .toUpperCase();
     },
 
     // Add unit of measurements based on the name of the key (heuristic)
@@ -79,25 +78,25 @@ export default {
       return value.toFixed(2);
     },
 
-    // Dynamic color logic (Simplified because the frontend doesn't know the backend thresholds)
-    // If we want to use real threshold we retrieve them via API
-    // Here we use "optimistic" or neutral values for unknown metrics
     getDynamicClass(key, value) {
-      // Some examples of hardcoded threshold only for visualization (OPTIONAL)
-      // If you prefer you can leave everything 'normal' or color only CPU/RAM
-      
-      if (key.includes('cpu')) {
-        if (value > 80) return 'critical';
-        if (value > 50) return 'warning';
-      }
-      
-      if (key.includes('memory')) {
-        if (value > 3000) return 'critical'; // Generic example
-        if (value > 2000) return 'warning';
+      // 1. We retrieve the threshold for the specific metric (ex. key = "cpu")
+      const threshold = this.thresholds[key];
+
+      // 2. If there's no threshold for the current key, we return 'normal'
+      if (threshold === undefined) {
+        if (key.includes('instances')) return 'instance-badge-text';
+        return 'normal';
       }
 
-      if (key.includes('instances')) {
-        return 'instance-badge-text'; // Special class for the Instances
+      // 3. Dynamic comparison
+      // If the value is above the threshold, we return 'critical'
+      if (value > threshold) {
+        return 'critical';
+      }
+
+      // Optionally we define a 'warning' area (ex. 80% of the threshold)
+      if (value > (threshold * 0.8)) {
+        return 'warning';
       }
 
       return 'normal';

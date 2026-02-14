@@ -11,7 +11,8 @@
     <main>
       <section class="metrics-section">
         <div v-if="loading" class="loading-message">
-          📡 Connessione al cluster in corso...
+          <i class="bi bi-broadcast-pin"></i>
+          Connecting to the cluster...
         </div>
         
         <div v-else class="metrics-grid">
@@ -19,7 +20,7 @@
             v-for="(item, index) in metrics" 
             :key="index" 
             :metricData="item" 
-          />
+            :thresholds="thresholds"  />
         </div>
       </section>
 
@@ -44,22 +45,33 @@ export default {
   data() {
     return {
       metrics: [],
+      thresholds: {},
       loading: true,
       intervalId: null
     }
   },
   methods: {
+    async fetchThresholds() {
+      try {
+        const res = await axios.get('http://localhost:8080/api/thresholds');
+        this.thresholds = res.data;
+        console.log("Thresholds loaded:", this.thresholds);
+      } catch (error) {
+        console.error("API Thresholds error:", error);
+      }
+    },
     async fetchMetrics() {
       try {
         const res = await axios.get('http://localhost:8080/api/metrics');
         this.metrics = res.data;
         this.loading = false;
       } catch (error) {
-        console.error("Errore API Metriche:", error);
+        console.error("API Metrics error:", error);
       }
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchThresholds();
     this.fetchMetrics();
     this.intervalId = setInterval(this.fetchMetrics, 2000);
   },
@@ -70,7 +82,7 @@ export default {
 </script>
 
 <style>
-/* STILI GLOBALI */
+/* GLOBAL STYLES */
 body {
   margin: 0;
   background-color: #f8f9fa;
@@ -99,7 +111,7 @@ body {
   margin: 0;
 }
 
-/* Modifica CSS: Spazio SOTTO le metriche per separarle dall'AI */
+/* CSS Modification: Space BELOW the metrics to separate them from the AI */
 .metrics-section {
   margin-bottom: 3rem;
 }
@@ -117,7 +129,7 @@ body {
   padding: 2rem;
 }
 
-/* L'AI Section ora è in fondo, non serve margine sotto obbligatorio ma male non fa */
+/* The AI Section is now at the bottom, we don't obligatory need any margin, but it's not an issue to add some */
 .ai-section {
   margin-bottom: 2rem;
 }
