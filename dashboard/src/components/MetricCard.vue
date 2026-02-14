@@ -105,7 +105,7 @@ export default {
       }
 
       // Warning state: value is within the "danger zone" (80% of threshold)
-      if (value > (threshold * 0.8)) {
+      if (value > (threshold * 0.4)) {
         return 'warning';
       }
 
@@ -177,7 +177,7 @@ export default {
 }
 
 /* State Colors */
-.normal { color: #334155; }
+.normal { color: #059669; }
 .warning { color: #f59e0b; }
 .critical { color: #ef4444; font-weight: 800; }
 
