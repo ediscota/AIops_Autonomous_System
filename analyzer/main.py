@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient
 
 # Config parsing
-config = configparser.ConfigParser()
+config = configparser.ConfigParser(interpolation=None)
 config.read("config.ini")
 
 # Environment Variables
@@ -21,7 +21,7 @@ INFLUX_BUCKET = os.environ.get("INFLUXDB_BUCKET")
 
 ANALYZER_INTERVAL = int(config["general"]["analyzer_interval"])
 
-# Dynamic Configuration Loading from the config.ini file
+# Dynamic Configuration Loading
 METRIC_RULES = {} 
 
 try:
@@ -34,21 +34,12 @@ try:
             threshold = config[section_name].get("threshold")
             if threshold:
                 METRIC_RULES[metric] = float(threshold)
-                print(f"[Config] Loaded rule for '{metric}': threshold > {threshold}")
-            else:
-                print(f"[Config] Warning: No threshold defined for '{metric}'")
-
+                print(f"[Config] Monitoring '{metric}': threshold {threshold}")
 except Exception as e:
     print(f"[Config] Error loading metric rules: {e}")
 
-
 def collect_metrics(query_api) -> dict:
-    """
-    Queries InfluxDB to get the latest values for all metrics
-    returns a dictionary: {cluster: {container: {metric: value}}}
-    """
     metrics = {}
-
     query = f'''
     from(bucket: "{INFLUX_BUCKET}")
     |> range(start: -1m)
@@ -58,7 +49,6 @@ def collect_metrics(query_api) -> dict:
     )
     |> last()
     '''
-
     try:
         tables = query_api.query(query)
         for table in tables:
@@ -67,55 +57,48 @@ def collect_metrics(query_api) -> dict:
                 container = record["container"]
                 metric_name = record.values.get("metric")
                 
-                # Fallback: if metric_name doesn't exist as a tag, try to parse it from the topic
                 if not metric_name and "topic" in record.values:
-                    # Topic format: AIops/metrics/cluster_X/container_Y/METRIC_NAME
                     topic_parts = record["topic"].split("/")
                     metric_name = topic_parts[-1]
 
                 value = record.get_value()
-
                 if metric_name and value is not None:
                     metrics.setdefault(cluster, {})
                     metrics[cluster].setdefault(container, {})
                     metrics[cluster][container][metric_name] = value
-
     except Exception as e:
         print(f"[Analyzer] Error querying InfluxDB: {e}")
-
     return metrics
 
-
 def evaluate_metrics(metrics: dict) -> dict:
-    """
-    Evaluates the collected metrics with the dynamically loaded rules from the config.ini file
-    """
-    anomalies = {}
-
+    report = {}
     for cluster, containers in metrics.items():
         for container, container_metrics in containers.items():
-            
-            container_anomalies = {}
-
+            container_status = {}
             for metric_name, value in container_metrics.items():
                 if metric_name in METRIC_RULES:
                     threshold = METRIC_RULES[metric_name]
+                    
                     if value > threshold:
-                        container_anomalies[metric_name] = {
-                            "value": value,
-                            "threshold": threshold,
-                            "severity": "critical" if value > threshold * 1.5 else "warning"
-                        }
+                        severity = "critical"
+                    elif value > (threshold * 0.6):
+                        severity = "warning"
+                    elif value < (threshold * 0.2):
+                        severity = "under_usage"
+                    else:
+                        severity = "normal" # Between 20% and 60% -> Dead Zone
 
-            if container_anomalies:
-                anomalies.setdefault(cluster, {})
-                anomalies[cluster][container] = container_anomalies
-
-    return anomalies
-
+                    container_status[metric_name] = {
+                        "value": value,
+                        "threshold": threshold,
+                        "severity": severity
+                    }
+            if container_status:
+                report.setdefault(cluster, {})
+                report[cluster][container] = container_status
+    return report
 
 # Connection Setup
-# 1. MQTT
 while True:
     try:
         mqtt_client = mqtt.Client()
@@ -127,42 +110,31 @@ while True:
         print(f"[Analyzer] MQTT not ready: {e}")
         time.sleep(2)
 
-# 2. InfluxDB
 while True:
     try:
         influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-        health = influx_client.health()
-        if health.status == "pass":
+        if influx_client.health().status == "pass":
             query_api = influx_client.query_api()
             print("[Analyzer] InfluxDB ready")
             break
-        else:
-            raise Exception(health.message)
     except Exception as e:
         print(f"[Analyzer] InfluxDB not ready: {e}")
         time.sleep(3)
 
-
-# Main Loop
 print(f"[Analyzer] Started monitoring. Interval: {ANALYZER_INTERVAL}s")
 
 while True:
     current_metrics = collect_metrics(query_api)
-    if not current_metrics:
-        print("[Analyzer] No metrics found in InfluxDB recently.")
-    else:
-        anomalies = evaluate_metrics(current_metrics)
+    if current_metrics:
+        analysis_report = evaluate_metrics(current_metrics)
         
-        if anomalies:
-            print(f"[Analyzer] Anomalies Detected: {json.dumps(anomalies)}")
-            mqtt_client.publish(
-                MQTT_TOPIC,
-                json.dumps({
-                    "timestamp": time.time(),
-                    "anomalies": anomalies
-                })
-            )
-        else:
-            print("[Analyzer] System Healthy (No anomalies)")
-
+        mqtt_client.publish(
+            MQTT_TOPIC,
+            json.dumps({
+                "timestamp": time.time(),
+                "anomalies": analysis_report
+            })
+        )
+        print(f"[Analyzer] Report published for {len(analysis_report)} clusters")
+    
     time.sleep(ANALYZER_INTERVAL)

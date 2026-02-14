@@ -37,8 +37,8 @@ for metric in ENABLED_METRICS:
         # 1. Load all keys from the section as a dictionary
         raw_config = dict(config[section_name])
         
-        # 2. Remove 'unit' to prevent it from interfering with simulation math
-        # It is popped here so that classes in webapp.py only receive numeric params
+        # 2. Remove UI/Planner metadata to prevent interference with math
+        # We pop everything that is NOT a numeric simulation parameter
         raw_config.pop("unit", None) 
 
         # 3. Convert remaining parameters to float for mathematical calculations
@@ -47,7 +47,7 @@ for metric in ENABLED_METRICS:
             try:
                 processed_config[key] = float(value)
             except ValueError:
-                # Keep as string if it's not a number (but 'unit' is already gone)
+                # Fallback for unexpected strings
                 processed_config[key] = value 
         
         METRIC_CONFIGS[metric] = processed_config
@@ -116,9 +116,7 @@ while True:
 
         action_payload = {
             "action": command.get("action"),
-            "container": container_name,
-            "metric": command.get("metric"), 
-            "severity": command.get("severity", "warning")
+            "container": container_name
         }
 
         executed = cluster.execute_action(action_payload)
@@ -136,7 +134,7 @@ while True:
         else:
             print(f"[Managed Resources] Action failed: {action_payload}")
 
-    # 2. Update all containers metrics (simulate noise, drift, and correlations)
+    # 2. Update all containers metrics
     for cluster in clusters.values():
         cluster.update_state()
 

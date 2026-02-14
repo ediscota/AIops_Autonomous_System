@@ -42,9 +42,7 @@ def on_message(client, userdata, msg):
                 "timestamp": time.time(),
                 "cluster": cluster_id,        # int id ready
                 "container": container_name,  # name without the prefix "container_"
-                "action": action["action"],
-                "metric": action.get("metric"),
-                "severity": action.get("severity", "warning")
+                "action": action["action"]
             }
 
             client.publish(EXECUTE_TOPIC, json.dumps(command))

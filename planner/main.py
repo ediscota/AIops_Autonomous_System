@@ -2,84 +2,81 @@ import os
 import time
 import json
 import requests
+import configparser
 import llm_service
 import paho.mqtt.client as mqtt
 
 # Config parsing
+config = configparser.ConfigParser(interpolation=None)
+config.read("config.ini")
+
+# Environment Variables
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", 1883))
-
 MODEL_NAME = os.environ.get("MODEL_NAME")
 MODEL_URL = os.environ.get("MODEL_URL")
 
 INPUT_TOPIC = "AIops/analyzer"
 OUTPUT_TOPIC = "AIops/planner"
 
-def decide_action(metric, value, threshold):
-    ratio = (value - threshold) / threshold
+# We load only the available metrics
+try:
+    ENABLED_METRICS = [m.strip() for m in config["general"]["metrics"].split(",")]
+    print(f"[Planner] Monitoring metrics: {ENABLED_METRICS}")
+except Exception as e:
+    print(f"[Planner] Error loading metrics from config: {e}")
+    ENABLED_METRICS = []
 
-    match metric:
+def decide_action(metric, severity):
+    """
+    Logica decisionale centralizzata.
+    Ritorna l'azione stringa o None se non è richiesto alcun intervento.
+    """
+    if metric not in ENABLED_METRICS:
+        return None
 
-        case "cpu":
-            if ratio > 0.5:
-                return "restart", "critical"
-            elif ratio > 0.2:
-                return "scale_up", "warning"
-            
-        case "memory":
-            if ratio > 0.5:
-                return "restart", "critical"
-            elif ratio > 0.2:
-                return "scale_up", "warning"
-
-        case "service_time":
-            if ratio > 0.3:
-                return "restart", "critical"
-            elif ratio > 0.1:
-                return "scale_up", "warning"
-
-        case "instances":
-            if value > threshold:
-                return "scale_down", "warning"
-
-        case _:
-            # Unrecognized metric
-            return None, None
-
-    return None, None
-
+    if severity == "critical":
+        return "restart"
+    elif severity == "warning":
+        return "scale_up"
+    elif severity == "under_usage":
+        return "scale_down"
+    elif severity == "normal":
+        # Return None -> no actions required, we're in the 'Dead Zone'
+        return None
+    
+    return None
 
 def on_message(client, userdata, msg):
     try:
         payload = json.loads(msg.payload.decode())
-        anomalies = payload.get("anomalies", {})
+        report = payload.get("anomalies", {})
 
-        if not anomalies:
-            print("[Planner] No anomalies in message")
+        if not report:
             return
 
         actions = []
 
-        for cluster, containers in anomalies.items():
-            for container, metrics in containers.items():
-                for metric, data in metrics.items():
-                    value = data["value"]
-                    threshold = data["threshold"]
-
-                    action, severity = decide_action(metric, value, threshold)
+        for cluster_id, containers in report.items():
+            for container_name, metrics in containers.items():
+                for metric_name, data in metrics.items():
+                    severity = data["severity"]
+                    action = decide_action(metric_name, severity)
+                    
+                    # If action is None ('normal' case) the list remains empty
                     if action:
                         actions.append({
-                            "cluster": cluster,
-                            "container": container,
-                            "metric": metric,
+                            "cluster": int(cluster_id) if cluster_id.isdigit() else cluster_id,
+                            "container": container_name,
+                            "metric": metric_name,
                             "action": action,
                             "severity": severity,
-                            "value": value,
-                            "threshold": threshold
+                            "value": data["value"],
+                            "threshold": data["threshold"]
                         })
 
         if actions:
-            print("[Planner] Actions decided:", actions)
+            print(f"[Planner] Decisions made: {len(actions)} actions queued")
             client.publish(
                 OUTPUT_TOPIC,
                 json.dumps({
@@ -88,22 +85,14 @@ def on_message(client, userdata, msg):
                 })
             )
             llm_service.send_to_llm(actions) 
-            print("[Planner] Prompt to LLM Sent")
         else:
-            print("[Planner] No actions required")
-            client.publish(
-                llm_service.PLANNER_LLM_TOPIC,
-                json.dumps({
-                    "timestamp": time.time(),
-                    "response": "No actions required in the monitored containers."
-                })
-            )
+            # If the list is empty (because all the metrics are 'normal') the system doesn't publish anything to MQTT nor to the LLM
+            print("[Planner] System status: NORMAL. No actions required.")
 
     except Exception as e:
         print(f"[Planner] Error processing message: {e}")
 
-
-# MQTT setup
+# MQTT and Ollama Setup
 while True:
     try:
         client = mqtt.Client()
@@ -117,16 +106,10 @@ while True:
         print(f"[Planner] MQTT not ready: {e}")
         time.sleep(2)
 
-# Waiting for Ollama
-payload = {
-        "model": MODEL_NAME,
-        "prompt": "ping",
-        "stream": False
-    }
-
+payload_ping = {"model": MODEL_NAME, "prompt": "ping", "stream": False}
 while True:
     try:
-        r = requests.post(MODEL_URL, json=payload, timeout=120)
+        r = requests.post(MODEL_URL, json=payload_ping, timeout=120)
         r.raise_for_status()
         print("[Planner] Ollama ready")
         break
@@ -134,9 +117,6 @@ while True:
         print(f"[Planner] Ollama not ready: {e}")
         time.sleep(5)
 
-print("[Planner] Started")
-print("[Planner] Waiting for anomalies...")
-
-# Main loop
+print("[Planner] Started and waiting for reports...")
 while True:
     time.sleep(1)

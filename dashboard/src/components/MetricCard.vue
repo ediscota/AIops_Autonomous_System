@@ -104,8 +104,8 @@ export default {
         return 'critical';
       }
 
-      // Warning state: value is within the "danger zone" (80% of threshold)
-      if (value > (threshold * 0.4)) {
+      // Warning state: value is within the "danger zone" (50% of threshold)
+      if (value > (threshold * 0.5)) {
         return 'warning';
       }
 
