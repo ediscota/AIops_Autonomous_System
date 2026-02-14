@@ -30,7 +30,7 @@ public class ApiController {
     }
 
     @GetMapping("/thresholds")
-    public Map<String, Double> getThresholds() {
+    public Map<String, Map<String, Object>> getThresholds() {
         return configService.getThresholds();
     }
 }

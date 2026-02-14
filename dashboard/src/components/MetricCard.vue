@@ -15,7 +15,11 @@
       >
         <span class="label">{{ formatLabel(key) }}</span>
         
-        <span class="value" :class="getDynamicClass(key, value)">
+        <span 
+          class="value" 
+          :class="getDynamicClass(key, value)"
+          :title="thresholds[key] ? 'Threshold: ' + thresholds[key].threshold : ''"
+        >
           {{ formatValue(key, value) }}
         </span>
       </div>
@@ -27,24 +31,26 @@
 export default {
   name: "MetricCard",
   props: {
+    // Current live metrics for the container
     metricData: { type: Object, required: true },
+    // Configuration mapping (thresholds and units) from ConfigService
     thresholds: { type: Object, required: true }
   },
   computed: {
-    // 1. Cleans the container name
+    // Cleans and formats the container name for display
     formattedName() {
       const name = this.metricData.container || "Unknown";
       return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
     },
 
+    // Cleans and formats the cluster name for display
     formattedCluster() {
       const name = this.metricData.cluster || "Unknown";
       return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
     },
 
-    // 2. Filters the keys which are NOT to show to the user
+    // Filters out technical metadata keys that shouldn't be displayed in the UI
     displayMetrics() {
-      // List of keys to ignore (system's metadata)
       const ignoredKeys = ['cluster', 'container', 'host', 'topic', 'result', 'table', '_start', '_stop', '_time'];
       
       const metrics = {};
@@ -57,44 +63,48 @@ export default {
     }
   },
   methods: {
-    // Transforms "service_time" in "Service Time"
+    // Converts snake_case keys to Upper Case labels (e.g., "service_time" -> "SERVICE TIME")
     formatLabel(key) {
       return key
-        .replace(/_/g, " ") // Replace underscore with spaces
-        .replace(/\b\w/g, l => l.toUpperCase()) // Capitalize the first letter
+        .replace(/_/g, " ") 
+        .replace(/\b\w/g, l => l.toUpperCase()) 
         .toUpperCase();
     },
 
-    // Add unit of measurements based on the name of the key (heuristic)
+    // Formats the numeric value and appends the unit defined in config.ini
     formatValue(key, value) {
       if (typeof value !== 'number') return value;
 
-      if (key.includes('cpu')) return value.toFixed(2) + ' %';
-      if (key.includes('memory')) return value.toFixed(1) + ' MB';
-      if (key.includes('time') || key.includes('latency')) return value.toFixed(2) + ' ms';
-      if (key.includes('instances')) return Math.round(value); // Integer
+      // Get configuration for this specific metric
+      const config = this.thresholds[key];
+      
+      // Append unit if it exists in the configuration
+      const unit = (config && config.unit) ? ' ' + config.unit : '';
+      
+      // Precision logic: Integers for instances, 2 decimal places for others
+      const formattedNum = key.includes('instances') ? Math.round(value) : value.toFixed(2);
 
-      // Default for unknown metrics
-      return value.toFixed(2);
+      return `${formattedNum}${unit}`;
     },
 
+    // Determines the CSS class based on the current value vs the threshold
     getDynamicClass(key, value) {
-      // 1. We retrieve the threshold for the specific metric (ex. key = "cpu")
-      const threshold = this.thresholds[key];
+      const config = this.thresholds[key];
 
-      // 2. If there's no threshold for the current key, we return 'normal'
-      if (threshold === undefined) {
+      // If no threshold is defined for this metric, use default styles
+      if (!config || config.threshold === undefined) {
         if (key.includes('instances')) return 'instance-badge-text';
         return 'normal';
       }
 
-      // 3. Dynamic comparison
-      // If the value is above the threshold, we return 'critical'
+      const threshold = config.threshold;
+
+      // Critical state: value strictly exceeds the threshold
       if (value > threshold) {
         return 'critical';
       }
 
-      // Optionally we define a 'warning' area (ex. 80% of the threshold)
+      // Warning state: value is within the "danger zone" (80% of threshold)
       if (value > (threshold * 0.8)) {
         return 'warning';
       }
@@ -167,11 +177,11 @@ export default {
 }
 
 /* State Colors */
-.normal { color: #334155; } /* Dark Grey is the default */
+.normal { color: #334155; }
 .warning { color: #f59e0b; }
 .critical { color: #ef4444; font-weight: 800; }
 
-/* Special Style for the Instances */
+/* Special Style for the Instances count */
 .instance-badge-text {
   background: #f1f5f9;
   color: #475569;

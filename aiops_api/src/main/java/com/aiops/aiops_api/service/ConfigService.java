@@ -12,8 +12,9 @@ import jakarta.annotation.PostConstruct;
 @Service
 public class ConfigService {
 
-    // Map that associates for each metric its threshold (es: "cpu" -> 10.0)
-    private final Map<String, Double> thresholds = new HashMap<>();
+    // Internal storage: maps metric name to its UI configuration (threshold and unit)
+    // Structure: "cpu" -> { "threshold": 40.0, "unit": "%" }
+    private final Map<String, Map<String, Object>> metricsConfig = new HashMap<>();
 
     @PostConstruct
     public void init() {
@@ -21,29 +22,43 @@ public class ConfigService {
             File configFile = new File("config.ini"); 
             Wini ini = new Wini(configFile);
 
-            // 1. We first read what metrics are defined (cpu, memory, ecc.)
+            // 1. Retrieve the list of enabled metrics from the [general] section
             String metricsString = ini.get("general", "metrics");
             if (metricsString != null) {
                 String[] metricNames = metricsString.split(",\\s*");
 
-                // 2. For each metric we find its section [metric_name]
+                // 2. Iterate through each metric to extract UI-relevant metadata
                 for (String name : metricNames) {
-                    String sectionName = "metric_" + name.trim();
+                    String cleanName = name.trim();
+                    String sectionName = "metric_" + cleanName;
+                    
                     String thresholdValue = ini.get(sectionName, "threshold");
+                    String unitValue = ini.get(sectionName, "unit");
                     
                     if (thresholdValue != null) {
-                        thresholds.put(name.trim(), Double.parseDouble(thresholdValue));
+                        Map<String, Object> details = new HashMap<>();
+                        
+                        // Parse the threshold as Double for numeric comparison in the frontend
+                        details.put("threshold", Double.parseDouble(thresholdValue));
+                        
+                        // Store the unit string; default to empty string if not provided in config.ini
+                        details.put("unit", (unitValue != null && !unitValue.isEmpty()) ? unitValue : "");
+                        
+                        metricsConfig.put(cleanName, details);
                     }
                 }
             }
-            System.out.println("Thresholds loaded: " + thresholds);
+            System.out.println("UI Metrics Configuration loaded: " + metricsConfig);
             
         } catch (IOException e) {
-            System.err.println("There was an error during config.ini loading: " + e.getMessage());
+            System.err.println("Error loading config.ini for UI thresholds: " + e.getMessage());
         }
     }
 
-    public Map<String, Double> getThresholds() {
-        return thresholds;
+    /**
+     * Returns the complete metrics configuration to be exposed via REST API.
+     */
+    public Map<String, Map<String, Object>> getThresholds() {
+        return metricsConfig;
     }
 }

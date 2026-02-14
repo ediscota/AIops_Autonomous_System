@@ -7,8 +7,9 @@ import paho.mqtt.client as mqtt
 from queue import Queue
 from webapp import Cluster, Container
 
-# Config parsing
-config = configparser.ConfigParser()
+# Config parsing - DISABLED INTERPOLATION
+# This prevents InterpolationSyntaxError when the '%' character is used in 'unit'
+config = configparser.ConfigParser(interpolation=None)
 config.read("config.ini")
 
 MQTT_BROKER = os.environ.get("MQTT_BROKER", "mosquitto")
@@ -33,15 +34,31 @@ METRIC_CONFIGS = {}
 for metric in ENABLED_METRICS:
     section_name = f"metric_{metric}"
     if config.has_section(section_name):
-        METRIC_CONFIGS[metric] = dict(config[section_name])
+        # 1. Load all keys from the section as a dictionary
+        raw_config = dict(config[section_name])
+        
+        # 2. Remove 'unit' to prevent it from interfering with simulation math
+        # It is popped here so that classes in webapp.py only receive numeric params
+        raw_config.pop("unit", None) 
+
+        # 3. Convert remaining parameters to float for mathematical calculations
+        processed_config = {}
+        for key, value in raw_config.items():
+            try:
+                processed_config[key] = float(value)
+            except ValueError:
+                # Keep as string if it's not a number (but 'unit' is already gone)
+                processed_config[key] = value 
+        
+        METRIC_CONFIGS[metric] = processed_config
     else:
         print(f"[Warning] Configuration section [{section_name}] not found. Using defaults.")
         METRIC_CONFIGS[metric] = {
-            'initial': 0, 'min': 0, 'max': 100, 'noise': 0, 
-            'scale_up_delta': 0, 'scale_down_delta': 0
+            'initial': 0.0, 'min': 0.0, 'max': 100.0, 'noise': 0.0, 
+            'scale_up_delta': 0.0, 'scale_down_delta': 0.0
         }
 
-# Simulation state
+# Simulation state initialization
 containers = []
 for i in range(NUM_CONTAINERS):
     section = f"container_{i}"
@@ -59,7 +76,7 @@ clusters = {
 
 execute_queue = Queue()
 
-# MQTT callback (NO STATE CHANGE)
+# MQTT callback (handles incoming commands from the AI/Dashboard)
 def on_execute_message(client, userdata, msg):
     try:
         command = json.loads(msg.payload.decode())
@@ -68,7 +85,7 @@ def on_execute_message(client, userdata, msg):
     except Exception as e:
         print(f"[Managed Resources] Error queuing command: {e}")
 
-# MQTT setup
+# MQTT connection setup with retry logic
 while True:
     try:
         client = mqtt.Client()
@@ -86,11 +103,9 @@ print("[Managed Resources] Started")
 
 # Main simulation loop
 while True:
-
-    # 1. Execute pending commands
+    # 1. Process received commands (Scaling, Healing, etc.)
     while not execute_queue.empty():
         command = execute_queue.get()
-
         cluster_id = command.get("cluster")
         container_name = command.get("container")
 
@@ -109,48 +124,29 @@ while True:
         executed = cluster.execute_action(action_payload)
 
         if executed:
-            print(f"[Managed Resources] Executed command: {action_payload}")
-            container = next(
-                (c for c in cluster.containers if c.name == container_name),
-                None
-            )
-
+            print(f"[Managed Resources] Executed: {action_payload}")
+            # Immediate publish after state change to improve UI responsiveness
+            container = next((c for c in cluster.containers if c.name == container_name), None)
             if container:
                 timestamp = time.time()
-                topic_base = (
-                    f"AIops/metrics/cluster_{cluster.cluster_id}/"
-                    f"container_{container.name}/"
-                )
-
-                # Dynamic publishing
+                topic_base = f"AIops/metrics/cluster_{cluster.cluster_id}/container_{container.name}/"
                 for metric_name, value in container.metrics.items():
-                    payload = {
-                        "timestamp": timestamp, 
-                        "value": round(float(value), 2)
-                    }
+                    payload = {"timestamp": timestamp, "value": round(float(value), 2)}
                     client.publish(topic_base + metric_name, json.dumps(payload))
         else:
             print(f"[Managed Resources] Action failed: {action_payload}")
 
-    # 2. Update simulation state (Tick)
+    # 2. Update all containers metrics (simulate noise, drift, and correlations)
     for cluster in clusters.values():
         cluster.update_state()
 
-    # 3. Periodic metrics publish
+    # 3. Periodic telemetry publishing via MQTT
     timestamp = time.time()
     for cluster in clusters.values():
         for container in cluster.containers:
-            topic_base = (
-                f"AIops/metrics/cluster_{cluster.cluster_id}/"
-                f"container_{container.name}/"
-            )
-
-            # DYNAMIC PUBLISHING
+            topic_base = f"AIops/metrics/cluster_{cluster.cluster_id}/container_{container.name}/"
             for metric_name, value in container.metrics.items():
-                payload = {
-                    "timestamp": timestamp, 
-                    "value": round(float(value), 2)
-                }
+                payload = {"timestamp": timestamp, "value": round(float(value), 2)}
                 client.publish(topic_base + metric_name, json.dumps(payload))
 
     time.sleep(PUBLISH_INTERVAL)
