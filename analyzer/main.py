@@ -77,28 +77,43 @@ def evaluate_metrics(metrics: dict) -> dict:
     report = {}
     for cluster, containers in metrics.items():
         for container, container_metrics in containers.items():
-            container_status = {}
+            
+            # 1. Finds the worst severity between all of the container's metrics
+            worst_severity = "normal"
+            relevant_metric = None
+            max_value = 0
+
             for metric_name, value in container_metrics.items():
                 if metric_name in METRIC_RULES:
                     threshold = METRIC_RULES[metric_name]
                     
+                    # Local severity computation
                     if value > threshold:
-                        severity = "critical"
+                        current_sev = "critical"
                     elif value > (threshold * 0.6):
-                        severity = "warning"
+                        current_sev = "warning"
                     elif value < (threshold * 0.2):
-                        severity = "under_usage"
+                        current_sev = "under_usage"
                     else:
-                        severity = "normal" # Between 20% and 60% -> Dead Zone
+                        current_sev = "normal"
 
-                    container_status[metric_name] = {
-                        "value": value,
-                        "threshold": threshold,
-                        "severity": severity
-                    }
-            if container_status:
+                    # Hierarchy: critical > warning > under_usage > normal
+                    priority = {"critical": 3, "warning": 2, "under_usage": 1, "normal": 0}
+                    
+                    if priority[current_sev] > priority[worst_severity]:
+                        worst_severity = current_sev
+                        relevant_metric = metric_name
+                        max_value = value
+
+            # 2. Creates a unique state for the container based on the worst metric
+            if relevant_metric:
                 report.setdefault(cluster, {})
-                report[cluster][container] = container_status
+                report[cluster][container] = {
+                    "dominant_metric": relevant_metric,
+                    "value": max_value,
+                    "threshold": METRIC_RULES[relevant_metric],
+                    "severity": worst_severity
+                }
     return report
 
 # Connection Setup

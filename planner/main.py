@@ -22,7 +22,6 @@ OUTPUT_TOPIC = "AIops/planner"
 MODEL_NAME = os.environ.get("MODEL_NAME")
 MODEL_URL = os.environ.get("MODEL_URL")
 
-# We load only the available metrics
 try:
     ENABLED_METRICS = [m.strip() for m in config["general"]["metrics"].split(",")]
     print(f"[Planner] Monitoring metrics: {ENABLED_METRICS}")
@@ -31,10 +30,6 @@ except Exception as e:
     ENABLED_METRICS = []
 
 def decide_action(metric, severity):
-    """
-    Logica decisionale centralizzata.
-    Ritorna l'azione stringa o None se non è richiesto alcun intervento.
-    """
     if metric not in ENABLED_METRICS:
         return None
 
@@ -45,8 +40,7 @@ def decide_action(metric, severity):
     elif severity == "under_usage":
         return "scale_down"
     elif severity == "normal":
-        # Return None -> no actions required, we're in the 'Dead Zone'
-        return None
+        return None  # Dead Zone
     
     return None
 
@@ -60,26 +54,31 @@ def on_message(client, userdata, msg):
 
         actions = []
 
+        # The report has the form: { cluster_id: { container_name: { dominant_metric, severity, value, threshold } } }
         for cluster_id, containers in report.items():
-            for container_name, metrics in containers.items():
-                for metric_name, data in metrics.items():
-                    severity = data["severity"]
-                    action = decide_action(metric_name, severity)
-                    
-                    # If action is None ('normal' case) the list remains empty
-                    if action:
-                        actions.append({
-                            "cluster": int(cluster_id) if cluster_id.isdigit() else cluster_id,
-                            "container": container_name,
-                            "metric": metric_name,
-                            "action": action,
-                            "severity": severity,
-                            "value": data["value"],
-                            "threshold": data["threshold"]
-                        })
+            for container_name, data in containers.items():
+                
+                # We extrapolate the data consolidated by the Analyzer
+                metric_name = data.get("dominant_metric")
+                severity = data.get("severity")
+                
+                # We decide the action based on the worst metric decided by the Analyzer
+                action = decide_action(metric_name, severity)
+                
+                if action:
+                    actions.append({
+                        "cluster": int(cluster_id) if cluster_id.isdigit() else cluster_id,
+                        "container": container_name,
+                        "metric": metric_name,
+                        "action": action,
+                        "severity": severity,
+                        "value": data["value"],
+                        "threshold": data["threshold"]
+                    })
 
+        # Output management
         if actions:
-            print(f"[Planner] Decisions made: {len(actions)} actions queued")
+            print(f"[Planner] Decisions made: {len(actions)} actions queued (Worst-case logic)")
             client.publish(
                 OUTPUT_TOPIC,
                 json.dumps({
@@ -89,13 +88,13 @@ def on_message(client, userdata, msg):
             )
             llm_service.send_to_llm(actions) 
         else:
-            # If the list is empty (because all the metrics are 'normal') the system doesn't publish anything to MQTT nor to the LLM
-            print("[Planner] System status: NORMAL. No actions required.")
+            # If all the dominant metrics were 'normal', actions are not required
+            print("[Planner] System status: ALL NORMAL. No consolidation actions required.")
 
     except Exception as e:
         print(f"[Planner] Error processing message: {e}")
 
-# MQTT and Ollama Setup
+# MQTT and Ollama setup
 while True:
     try:
         client = mqtt.Client()
@@ -121,6 +120,6 @@ while True:
         print(f"[Planner] Ollama not ready: {e}")
         time.sleep(5)
 
-print("[Planner] Started and waiting for reports...")
+print("[Planner] Started and waiting for consolidated reports...")
 while True:
     time.sleep(1)

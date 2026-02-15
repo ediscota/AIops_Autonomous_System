@@ -31,28 +31,31 @@
 export default {
   name: "MetricCard",
   props: {
-    // Current live metrics for the container
     metricData: { type: Object, required: true },
-    // Configuration mapping (thresholds and units) from ConfigService
     thresholds: { type: Object, required: true }
   },
   computed: {
-    // Cleans and formats the container name for display
+    // FIX: We use Regex with the 'g' flag to replace every instance of dashes/underscores
     formattedName() {
       const name = this.metricData.container || "Unknown";
-      return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
+      return name
+        .replace(/^container_/, "") // Removes the prefix only at the beginning
+        .replace(/[-_]/g, " ")     // Replaces every '-' or '_' with a space
+        .toUpperCase();
     },
 
-    // Cleans and formats the cluster name for display
     formattedCluster() {
       const name = this.metricData.cluster || "Unknown";
-      return name.replace("container_", "").replace("-", " ").replace("_", " ").toUpperCase();
+      // It supports both strings like "cluster_0" and numbers
+      const clusterStr = String(name);
+      return clusterStr
+        .replace(/^cluster_/, "CLUSTER ")
+        .replace(/[-_]/g, " ")
+        .toUpperCase();
     },
 
-    // Filters out technical metadata keys that shouldn't be displayed in the UI
     displayMetrics() {
       const ignoredKeys = ['cluster', 'container', 'host', 'topic', 'result', 'table', '_start', '_stop', '_time'];
-      
       const metrics = {};
       for (const [key, value] of Object.entries(this.metricData)) {
         if (!ignoredKeys.includes(key)) {
@@ -63,53 +66,38 @@ export default {
     }
   },
   methods: {
-    // Converts snake_case keys to Upper Case labels (e.g., "service_time" -> "SERVICE TIME")
     formatLabel(key) {
       return key
         .replace(/_/g, " ") 
-        .replace(/\b\w/g, l => l.toUpperCase()) 
         .toUpperCase();
     },
 
-    // Formats the numeric value and appends the unit defined in config.ini
     formatValue(key, value) {
       if (typeof value !== 'number') return value;
 
-      // Get configuration for this specific metric
       const config = this.thresholds[key];
-      
-      // Append unit if it exists in the configuration
       const unit = (config && config.unit) ? ' ' + config.unit : '';
       
-      // Precision logic: Integers for instances, 2 decimal places for others
+      // Instances are always Integers, the rest are float with 2 decimal values
       const formattedNum = key.includes('instances') ? Math.round(value) : value.toFixed(2);
-
       return `${formattedNum}${unit}`;
     },
 
-    // Determines the CSS class based on the current value vs the threshold
     getDynamicClass(key, value) {
-      const config = this.thresholds[key];
+      // If the metric is Instances we use the neutral bagde style
+      if (key.includes('instances')) return 'instance-badge-text';
 
-      // If no threshold is defined for this metric, use default styles
-      if (!config || config.threshold === undefined) {
-        if (key.includes('instances')) return 'instance-badge-text';
-        return 'normal';
-      }
+      const config = this.thresholds[key];
+      if (!config || config.threshold === undefined) return 'normal';
 
       const threshold = config.threshold;
 
-      // Critical state: value strictly exceeds the threshold
-      if (value > threshold) {
-        return 'critical';
-      }
-
-      // Warning state: value is within the "danger zone" (50% of threshold)
-      if (value > (threshold * 0.5)) {
-        return 'warning';
-      }
-
-      return 'normal';
+      // Logic allined with the backend "Dead Zone"
+      if (value > threshold) return 'critical';
+      if (value > (threshold * 0.6)) return 'warning';
+      if (value < (threshold * 0.2)) return 'under-usage'; 
+      
+      return 'normal'; // Between 20% and 60%
     }
   }
 };
@@ -141,17 +129,18 @@ export default {
 
 .container-name {
   font-weight: 700;
-  color: #2c3e50;
-  font-size: 1rem;
+  color: #1e293b;
+  font-size: 0.95rem;
 }
 
 .badge {
-  background: #e0f2fe;
-  color: #0369a1;
+  background: #f1f5f9;
+  color: #64748b;
   padding: 0.25rem 0.6rem;
   border-radius: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .card-body {
@@ -167,26 +156,28 @@ export default {
 }
 
 .label {
-  color: #64748b;
-  font-size: 0.9rem;
-}
-
-.value {
-  font-family: 'Consolas', monospace;
+  color: #94a3b8;
+  font-size: 0.8rem;
   font-weight: 600;
 }
 
-/* State Colors */
-.normal { color: #059669; }
-.warning { color: #f59e0b; }
-.critical { color: #ef4444; font-weight: 800; }
+.value {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
 
-/* Special Style for the Instances count */
+/* Color Palette based on the severity */
+.normal { color: #10b981; }
+.warning { color: #f59e0b; }   
+.critical { color: #ef4444; }
+.under-usage { color: #3b82f6; }
+
 .instance-badge-text {
-  background: #f1f5f9;
+  background: #f8fafc;
   color: #475569;
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.9em;
+  border: 1px solid #e2e8f0;
 }
 </style>
