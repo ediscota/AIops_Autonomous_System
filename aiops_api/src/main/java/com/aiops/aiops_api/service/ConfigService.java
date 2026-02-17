@@ -22,12 +22,12 @@ public class ConfigService {
             File configFile = new File("config.ini"); 
             Wini ini = new Wini(configFile);
 
-            // 1. Retrieve the list of enabled metrics from the [general] section
+            // Retrieve the list of enabled metrics from the [general] section
             String metricsString = ini.get("general", "metrics");
             if (metricsString != null) {
                 String[] metricNames = metricsString.split(",\\s*");
 
-                // 2. Iterate through each metric to extract UI-relevant metadata
+                // Iterate through each metric to extract UI-relevant metadata
                 for (String name : metricNames) {
                     String cleanName = name.trim();
                     String sectionName = "metric_" + cleanName;
@@ -41,7 +41,7 @@ public class ConfigService {
                         // Parse the threshold as Double for numeric comparison in the frontend
                         details.put("threshold", Double.parseDouble(thresholdValue));
                         
-                        // Store the unit string; default to empty string if not provided in config.ini
+                        // Store the unit string, defaults to empty string if not provided in the config.ini file
                         details.put("unit", (unitValue != null && !unitValue.isEmpty()) ? unitValue : "");
                         
                         metricsConfig.put(cleanName, details);

@@ -28,7 +28,7 @@ services:
     networks:
       - aiops_network
     volumes:
-      - ./config/config.ini:/app/config.ini:ro
+      - ./config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 3. DATABASE (InfluxDB)
@@ -83,7 +83,7 @@ services:
     networks:
       - aiops_network
     volumes:
-      - ./config/config.ini:/app/config.ini:ro
+      - ./config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 6. PLANNER
@@ -100,7 +100,7 @@ services:
     networks:
       - aiops_network
     volumes:
-      - ./config/config.ini:/app/config.ini:ro
+      - ./config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 7. EXECUTOR
@@ -117,7 +117,7 @@ services:
     networks:
       - aiops_network
     volumes:
-      - ./config/config.ini:/app/config.ini:ro
+      - ./config.ini:/app/config.ini:ro
 
   # ---------------------------------------------------
   # 8. LLM EXPLAINER
@@ -151,7 +151,7 @@ services:
     networks:
       - aiops_network
     volumes:
-      - ./config/config.ini:/app/config.ini:ro
+      - ./config.ini:/app/config.ini:ro
     restart: unless-stopped
 
   # ---------------------------------------------------
@@ -171,7 +171,7 @@ services:
 volumes:
   ollama_data:
 
-# Define a custom network so containers can talk to each other by name
+# We define a custom network so that containers can talk to each other by name
 networks:
   aiops_network:
     driver: bridge

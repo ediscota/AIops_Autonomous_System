@@ -111,7 +111,7 @@ body {
   margin: 0;
 }
 
-/* CSS Modification: Space BELOW the metrics to separate them from the AI */
+/* CSS changes: Space BELOW the metrics to separate them from the AI */
 .metrics-section {
   margin-bottom: 3rem;
 }

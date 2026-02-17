@@ -35,12 +35,12 @@ export default {
     thresholds: { type: Object, required: true }
   },
   computed: {
-    // FIX: We use Regex with the 'g' flag to replace every instance of dashes/underscores
+    // We use a Regex with the 'g' flag to replace every instance of dashes/underscores
     formattedName() {
       const name = this.metricData.container || "Unknown";
       return name
         .replace(/^container_/, "") // Removes the prefix only at the beginning
-        .replace(/[-_]/g, " ")     // Replaces every '-' or '_' with a space
+        .replace(/[-_]/g, " ") // Replaces every '-' or '_' with a space
         .toUpperCase();
     },
 

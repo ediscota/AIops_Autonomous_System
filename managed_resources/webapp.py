@@ -15,7 +15,7 @@ class Container:
         # Tick update for all the metrics
         for name, value in self.metrics.items():
             cfg = self.metric_configs[name]
-            noise = float(cfg.get('noise', 0)) # default to 0
+            noise = float(cfg.get('noise', 0)) # Defaults to 0
                 
             # Random variation change
             change = random.uniform(-noise, noise)
@@ -59,9 +59,8 @@ class Cluster:
                 cfg = container.metric_configs[name]
                 
                 # We read from the config.ini file how much this metric needs to change
-                # Example: CPU has scale_up_delta = -10
-                key = f"{action}_delta" # it becomes "scale_up_delta" or "scale_down_delta"
-                delta = float(cfg.get(key, 0)) # defaults to 0
+                key = f"{action}_delta" # It becomes "scale_up_delta" or "scale_down_delta"
+                delta = float(cfg.get(key, 0)) # Defaults to 0
                 
                 # Applying the delta
                 new_val = val + delta

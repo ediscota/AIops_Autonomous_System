@@ -6,7 +6,7 @@ ollama serve &
 # Wait the server is ready
 sleep 5
 
-# Downloads the specified model in the environment variables of the docker-compose.yml file
+# Downloads the specified model in the .env file
 echo "Downloading model: $MODEL_NAME..."
 ollama pull $MODEL_NAME
 

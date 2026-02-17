@@ -1,4 +1,3 @@
-
 FAST_PROMPT = """
 Summarize the remediation plan: {plan}.
 Output strictly one sentence following this format:
@@ -19,7 +18,7 @@ Planner Decision:
 {plan}
 """
 
-#Dictionary to map config names to prompt variables
+# Dictionary to map config names to prompt variables
 AVAILABLE_PROMPTS = {
     "fast": FAST_PROMPT,
     "detailed": DETAILED_PROMPT

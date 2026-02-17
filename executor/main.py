@@ -42,8 +42,8 @@ def on_message(client, userdata, msg):
 
             command = {
                 "timestamp": time.time(),
-                "cluster": cluster_id,        # int id ready
-                "container": container_name,  # name without the prefix "container_"
+                "cluster": cluster_id,        # Integer id ready
+                "container": container_name,  # Name without the prefix "container_"
                 "action": action["action"]
             }
 
@@ -54,7 +54,7 @@ def on_message(client, userdata, msg):
     except Exception as e:
         print(f"[Executor] Error processing message: {e}")
 
-# Main
+# Main Loop
 if __name__ == "__main__":
     while True:
         try:

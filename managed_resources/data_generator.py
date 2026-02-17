@@ -7,8 +7,8 @@ import paho.mqtt.client as mqtt
 from queue import Queue
 from webapp import Cluster, Container
 
-# Config parsing - DISABLED INTERPOLATION
-# This prevents InterpolationSyntaxError when the '%' character is used in 'unit'
+# Config parsing
+# This setting prevents InterpolationSyntaxError when the '%' character is used, for example in 'unit'
 config = configparser.ConfigParser(interpolation=None)
 config.read("config.ini")
 
@@ -39,7 +39,7 @@ for metric in ENABLED_METRICS:
         # 1. Load all keys from the section as a dictionary
         raw_config = dict(config[section_name])
         
-        # 2. Remove UI/Planner metadata to prevent interference with math
+        # 2. Remove UI/Planner metadata to prevent interference with math operations
         # We pop everything that is NOT a numeric simulation parameter
         raw_config.pop("unit", None) 
 
@@ -106,7 +106,7 @@ print("[Managed Resources] Started")
 
 # Main simulation loop
 while True:
-    # 1. Process received commands (Scaling, Healing, etc.)
+    # 1. Process received commands
     while not execute_queue.empty():
         command = execute_queue.get()
         cluster_id = command.get("cluster")

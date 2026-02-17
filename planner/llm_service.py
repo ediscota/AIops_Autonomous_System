@@ -6,7 +6,7 @@ import threading
 import queue
 import configparser
 import paho.mqtt.client as mqtt
-import prompts  # Assicurati che planner/prompts.py esista
+import prompts
 
 # Config parsing
 config = configparser.ConfigParser()
@@ -21,10 +21,10 @@ MODEL_NAME = os.environ.get("MODEL_NAME")
 MODEL_URL = os.environ.get("MODEL_URL")
 TIMEOUT = int(os.environ.get("MODEL_TIMEOUT", 300))
 
-# --- SELEZIONE DINAMICA DEL PROMPT ---
+# Dynamic prompt loading
 try:
-    # Leggiamo dal config quale prompt usare (default: fast)
-    # Se la sezione [llm] o la chiave non esistono, fallback a 'fast'
+    # We read from the config.ini file which prompt to use
+    # If not specified we default to "fast"
     if config.has_option("llm", "active_prompt"):
         selected_style = config["llm"]["active_prompt"]
     else:
@@ -70,11 +70,11 @@ def _worker_loop():
     print("[Planner LLM Service] Worker thread started. Waiting for tasks...")
     
     while True:
-        # 1. Get item from queue (blocks if empty)
+        # Get item from queue (blocks if empty)
         data = llm_queue.get()
         
         try:
-            # 2. Process request (Blocking HTTP call)
+            # Process request (Blocking HTTP call)
             _process_llm_request(data)
             
         except Exception as e:
@@ -99,7 +99,7 @@ def _process_llm_request(data):
                 #"num_ctx": 2048,      # Context window size
                 #"num_thread": 4,      # Limit CPU threads
                 #"temperature": 0.1,   # Deterministic output
-                "num_predict": 300    # Limit response length
+                "num_predict": 300     # Limit response length
             }
         }
 
