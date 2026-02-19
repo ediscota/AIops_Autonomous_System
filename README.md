@@ -17,8 +17,8 @@ MODEL_URL=http://ollama_docker:11434/api/generate
 System Rules: Adjust thresholds and managed containers in config/config.ini.
 
 3. Running the System
-Run the entire stack in detached mode:
-docker compose up -d --build
+Run the entire stack:
+docker compose up
 
 4. Stopping the System
 To stop all services and remove the containers:
