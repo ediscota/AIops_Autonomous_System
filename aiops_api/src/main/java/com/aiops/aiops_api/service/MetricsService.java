@@ -53,9 +53,9 @@ public class MetricsService {
                         
                         // null safety: if a value is null, we put 0.0
                         if (val == null && !key.equals("cluster") && !key.equals("container")) {
-                             data.put(key, 0.0);
+                            data.put(key, 0.0);
                         } else {
-                             data.put(key, val);
+                            data.put(key, val);
                         }
                     }
                 }
